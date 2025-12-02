@@ -1,0 +1,14 @@
+# Quantum Computing Framework
+pyquil==3.2.1
+
+# Classical Optimization
+scipy>=1.9.0
+
+# Numerical Computing
+numpy>=1.23.0
+
+# Data Visualization
+matplotlib>=3.5.0
+
+# Machine Learning Metrics
+scikit-learn>=1.0.0
