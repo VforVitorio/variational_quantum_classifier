@@ -75,10 +75,10 @@ def encode_data_point(x: float, y: float) -> Program:
     program = Program()
 
     # Se codifica x en qbit 0 mediante rotación en el eje X
-    program += RX(np.pi * x, 0)
+    program += RX(2 * np.pi * x, 0)
 
     # Se codifica y en qbit 1 mediante rotación en el eje Y
-    program += RY(np.pi * y, 1)
+    program += RY(2 * np.pi * y, 1)
 
     return program
 
@@ -87,15 +87,11 @@ def encode_data_point(x: float, y: float) -> Program:
 # VARIATIONAL LAYER
 # =============================================================================
 
-# =============================================================================
-# VARIATIONAL LAYER
-# =============================================================================
-
-def variational_layer(params: np.ndarray, n_qubits: int = 2) -> Program:
+def variational_layer(params: np.ndarray, n_qubits: int = 2, n_layers: int = 1) -> Program:
     """
-    Aplica capa variacional con puertas parametrizadas entrenables.
+    Aplica capas variacionales con puertas parametrizadas entrenables.
 
-    Estructura de la capa:
+    Estructura de cada capa:
         1. Primera ronda de rotaciones: RY(θᵢ) en cada qubit
         2. Entrelazamiento: CNOT entre qubits adyacentes
         3. Segunda ronda de rotaciones: RX(θᵢ) en cada qubit
@@ -107,48 +103,55 @@ def variational_layer(params: np.ndarray, n_qubits: int = 2) -> Program:
 
     Args:
         params: Array de parámetros [θ₁, θ₂, θ₃, θ₄, ...]
-                Para n_qubits=2 se esperan 4 parámetros:
-                - params[0], params[1]: rotaciones RY
-                - params[2], params[3]: rotaciones RX
+                Para n_qubits=2, n_layers=1: 4 parámetros
+                Para n_qubits=2, n_layers=2: 8 parámetros
         n_qubits: Número de qubits en el circuito (default: 2)
+        n_layers: Número de capas variacionales (default: 1)
 
     Returns:
-        Program: Circuito con capa variacional aplicada
+        Program: Circuito con capas variacionales aplicadas
 
-    Ejemplo:
+    Ejemplo (1 capa):
         params = np.array([0.5, 1.2, 0.8, 2.1])
-        layer = variational_layer(params, n_qubits=2)
-        print(layer)
-            RY(0.5) 0
-            RY(1.2) 1
-            CNOT 0 1
-            RX(0.8) 0
-            RX(2.1) 1
+        layer = variational_layer(params, n_qubits=2, n_layers=1)
+
+    Ejemplo (2 capas):
+        params = np.array([0.5, 1.2, 0.8, 2.1, 0.3, 1.5, 0.9, 2.3])
+        layer = variational_layer(params, n_qubits=2, n_layers=2)
 
     Nota:
-        El número de parámetros debe ser 2 * n_qubits.
-        Para circuitos más profundos, esta función puede llamarse
-        múltiples veces con diferentes conjuntos de parámetros.
+        El número de parámetros debe ser 2 * n_qubits * n_layers.
     """
     program = Program()
 
+    # Soporta múltiples capas variacionales para mayor expresividad
+    # n_layers capas (ej: 2 capas = 8 parámetros para 2 qubits)
+
     # Verificar que tenemos suficientes parámetros
-    expected_params = 2 * n_qubits
+    expected_params = 2 * n_qubits * n_layers
     if len(params) < expected_params:
         raise ValueError(
-            f"Se esperan {expected_params} parámetros, se recibieron {len(params)}")
+            f"Se esperan {expected_params} parámetros (2 × {n_qubits} qubits × {n_layers} layers), "
+            f"se recibieron {len(params)}")
 
-    # Primera capa: Rotaciones RY individuales
-    for i in range(n_qubits):
-        program += RY(params[i], i)
+    param_idx = 0
 
-    # Capa de entrelazamiento: CNOT entre qubits adyacentes
-    for i in range(n_qubits - 1):
-        program += CNOT(i, i + 1)
+    # Aplicar cada capa secuencialmente
+    for layer in range(n_layers):
+        # Primera capa: Rotaciones RY individuales
+        for i in range(n_qubits):
+            program += RY(params[param_idx], i)
+            param_idx += 1
 
-    # Segunda capa: Rotaciones RX individuales
-    for i in range(n_qubits):
-        program += RX(params[n_qubits + i], i)
+        # Capa de entrelazamiento: CNOT entre qubits adyacentes
+        for i in range(n_qubits - 1):
+            program += CNOT(i, i + 1)
+
+        # Segunda capa: Rotaciones RX individuales
+        for i in range(n_qubits):
+            program += RX(params[param_idx], i)
+            param_idx += 1
+    # ========== FIN MEJORA ==========
 
     return program
 
@@ -161,14 +164,14 @@ def variational_layer(params: np.ndarray, n_qubits: int = 2) -> Program:
 # CIRCUIT BUILDER
 # =============================================================================
 
-def build_circuit(x: float, y: float, params: np.ndarray) -> Program:
+def build_circuit(x: float, y: float, params: np.ndarray, n_layers: int = 1) -> Program:
     """
-    Construye circuito cuántico completo combinando encoding y capa variacional.
+    Construye circuito cuántico completo combinando encoding y capas variacionales.
 
     Pipeline del circuito:
         1. Inicializa qubits en estado |00⟩
         2. Aplica encoding de datos (x,y) → |ψ₀⟩
-        3. Aplica capa variacional con parámetros θ → |ψ(θ)⟩
+        3. Aplica capas variacionales con parámetros θ → |ψ(θ)⟩
 
     El circuito resultante implementa la función:
         f(x, y; θ) = Measure[U_var(θ) · U_enc(x,y) · |00⟩]
@@ -176,24 +179,21 @@ def build_circuit(x: float, y: float, params: np.ndarray) -> Program:
     Args:
         x: Coordenada x del punto a clasificar [0, 1]
         y: Coordenada y del punto a clasificar [0, 1]
-        params: Parámetros entrenables de la capa variacional
-                Array de forma (4,) para 2 qubits
+        params: Parámetros entrenables de las capas variacionales
+                Array de forma (4,) para 1 capa con 2 qubits
+                Array de forma (8,) para 2 capas con 2 qubits
+        n_layers: Número de capas variacionales (default: 1)
 
     Returns:
         Program: Circuito cuántico completo sin mediciones
 
-    Ejemplo:
-        x, y = 0.5, 0.7
+    Ejemplo (1 capa):
         params = np.array([0.5, 1.2, 0.8, 2.1])
-        circuit = build_circuit(x, y, params)
-        print(circuit)
-            RX(1.5708) 0
-            RY(2.1991) 1
-            RY(0.5) 0
-            RY(1.2) 1
-            CNOT 0 1
-            RX(0.8) 0
-            RX(2.1) 1
+        circuit = build_circuit(0.5, 0.7, params, n_layers=1)
+
+    Ejemplo (2 capas):
+        params = np.array([0.5, 1.2, 0.8, 2.1, 0.3, 1.5, 0.9, 2.3])
+        circuit = build_circuit(0.5, 0.7, params, n_layers=2)
 
     Nota:
         Las mediciones no se incluyen aquí para permitir flexibilidad
@@ -201,11 +201,11 @@ def build_circuit(x: float, y: float, params: np.ndarray) -> Program:
     """
     program = Program()
 
-    # Paso 1: Encoding de datos clásicos
+    # Paso 1: Encoding de datos clásicos (mejorado con 2π)
     program += encode_data_point(x, y)
 
-    # Paso 2: Capa variacional entrenable
-    program += variational_layer(params, n_qubits=2)
+    # Paso 2: Capas variacionales entrenables (ahora soporta múltiples capas)
+    program += variational_layer(params, n_qubits=2, n_layers=n_layers)
 
     return program
 
@@ -273,13 +273,23 @@ def measure_circuit(circuit: Program, n_qubits: int = 2, shots: int = 100) -> in
     # Acceder a los datos correctamente en PyQuil 3.x
     measurements = result.readout_data.get('ro')
 
-    # Contar frecuencias del qubit 0 (qubit clasificador)
-    measurements_q0 = measurements[:, 0]
-    count_0 = np.sum(measurements_q0 == 0)
-    count_1 = np.sum(measurements_q0 == 1)
+    # Combinar ambos qubits para clasificación
+    # Mapeo: estado combinado = qubit_0 * 2 + qubit_1
+    #   |00⟩ = 0  →  Clase 0
+    #   |01⟩ = 1  →  Clase 0
+    #   |10⟩ = 2  →  Clase 1
+    #   |11⟩ = 3  →  Clase 1
+    measurements_combined = measurements[:, 0] * 2 + measurements[:, 1]
 
-    # Retornar clase mayoritaria
-    predicted_class = 0 if count_0 > count_1 else 1
+    # Votar: estados 0,1 → Clase 0;  estados 2,3 → Clase 1
+    votes_class_0 = np.sum((measurements_combined == 0)
+                           | (measurements_combined == 1))
+    votes_class_1 = np.sum((measurements_combined == 2)
+                           | (measurements_combined == 3))
+
+    # Retornar clase con más votos
+    predicted_class = 0 if votes_class_0 > votes_class_1 else 1
+    # ========== FIN MEJORA ==========
 
     return predicted_class
 
@@ -288,7 +298,7 @@ def measure_circuit(circuit: Program, n_qubits: int = 2, shots: int = 100) -> in
 # PREDICTION
 # =============================================================================
 
-def predict_single_point(x: float, y: float, params: np.ndarray, shots: int = 100) -> int:
+def predict_single_point(x: float, y: float, params: np.ndarray, shots: int = 100, n_layers: int = 1) -> int:
     """
     Predice clase para un único punto usando el circuito cuántico completo.
 
@@ -300,28 +310,32 @@ def predict_single_point(x: float, y: float, params: np.ndarray, shots: int = 10
     Args:
         x: Coordenada x normalizada [0, 1]
         y: Coordenada y normalizada [0, 1]
-        params: Parámetros del clasificador (4 valores para 2 qubits)
+        params: Parámetros del clasificador
+                (4 valores para 1 capa, 8 para 2 capas con 2 qubits)
         shots: Número de mediciones para votación (default: 100)
+        n_layers: Número de capas variacionales (default: 1)
 
     Returns:
         int: Clase predicha (0 o 1)
 
-    Ejemplo:
+    Ejemplo (1 capa):
         params = np.array([0.5, 1.2, 0.8, 2.1])
-        clase = predict_single_point(0.3, 0.7, params, shots=100)
-        print(f"Predicción: {clase}")
-            Predicción: 1
-    """
-    # Construir circuito completo
-    circuit = build_circuit(x, y, params)
+        clase = predict_single_point(0.3, 0.7, params, shots=100, n_layers=1)
 
-    # Medir y retornar clase
+    Ejemplo (2 capas):
+        params = np.array([0.5, 1.2, 0.8, 2.1, 0.3, 1.5, 0.9, 2.3])
+        clase = predict_single_point(0.3, 0.7, params, shots=100, n_layers=2)
+    """
+    # Construir circuito completo con n capas
+    circuit = build_circuit(x, y, params, n_layers=n_layers)
+
+    # Medir y retornar clase (ahora usando ambos qubits)
     prediction = measure_circuit(circuit, n_qubits=2, shots=shots)
 
     return prediction
 
 
-def predict_batch(X: np.ndarray, params: np.ndarray, shots: int = 100) -> np.ndarray:
+def predict_batch(X: np.ndarray, params: np.ndarray, shots: int = 100, n_layers: int = 1) -> np.ndarray:
     """
     Predice clases para múltiples puntos de forma vectorizada.
 
@@ -332,16 +346,19 @@ def predict_batch(X: np.ndarray, params: np.ndarray, shots: int = 100) -> np.nda
         X: Array de forma (n_samples, 2) con coordenadas de puntos
         params: Parámetros del clasificador
         shots: Shots por predicción
+        n_layers: Número de capas variacionales (default: 1)
 
     Returns:
         np.ndarray: Array de forma (n_samples,) con predicciones {0, 1}
 
-    Ejemplo:
+    Ejemplo (1 capa):
         X = np.array([[0.1, 0.2], [0.5, 0.7], [0.9, 0.3]])
         params = np.array([0.5, 1.2, 0.8, 2.1])
-        predictions = predict_batch(X, params, shots=100)
-        print(predictions)
-            [0 1 1]
+        predictions = predict_batch(X, params, shots=100, n_layers=1)
+
+    Ejemplo (2 capas):
+        params = np.array([0.5, 1.2, 0.8, 2.1, 0.3, 1.5, 0.9, 2.3])
+        predictions = predict_batch(X, params, shots=100, n_layers=2)
 
     Nota:
         Para datasets grandes, esta función puede ser lenta debido a
@@ -353,7 +370,8 @@ def predict_batch(X: np.ndarray, params: np.ndarray, shots: int = 100) -> np.nda
 
     # Predecir cada punto individualmente
     for i in range(n_samples):
-        predictions[i] = predict_single_point(X[i, 0], X[i, 1], params, shots)
+        predictions[i] = predict_single_point(
+            X[i, 0], X[i, 1], params, shots, n_layers)
 
     return predictions
 
