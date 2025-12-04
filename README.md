@@ -42,8 +42,8 @@ python main.py
 
 This will:
 
-- Generate the spiral dataset
-- Train the quantum classifier
+- Generate the spiral dataset (100 points)
+- Train the quantum classifier (3 attempts, best result selected)
 - Display accuracy metrics
 - Save visualizations to `results/`
 
@@ -69,6 +69,7 @@ proyecto_clasificador_cuantico/
 │   └── utils.py                  # Visualization + metrics
 ├── results/                      # Auto-generated outputs
 │   ├── decision_boundary.png     # Classification boundary plot
+│   ├── training_convergence.png  # Training progress
 │   └── metrics.txt               # Performance metrics
 ├── main.py                       # Quick demo script
 └── full_notebook.ipynb           # Complete interactive analysis
@@ -82,11 +83,53 @@ proyecto_clasificador_cuantico/
 - **Matplotlib** : Visualization
 - **scikit-learn** : Performance metrics
 
+## ⚡ Performance & Computational Complexity
+
+### Why is training slow?
+
+The VQC algorithm requires **~250,000 quantum circuit executions** :
+
+```
+100 points × 50 shots × 50 iterations = 250,000 executions
+```
+
+**Main bottlenecks:**
+
+1. **Quantum simulation overhead** : Each circuit requires compilation and state vector manipulation
+2. **Sequential evaluation** : Optimizer evaluates points one-by-one (not parallelizable)
+3. **Stochastic measurements** : Multiple shots needed for statistical stability
+
+### Why not use GPU?
+
+**PyQuil runs exclusively on CPU** - it has no GPU support. Quantum simulation differs fundamentally from deep learning:
+
+- Deep Learning: Massively parallel matrix operations (GPU-friendly)
+- Quantum Simulation: Sequential state evolution with complex dependencies (CPU-bound)
+
+**GPU-enabled alternatives** (Qiskit Aer, cuQuantum) would require complete code rewrite.
+
+### Optimization Strategy
+
+**Multiple attempts approach** (3 training runs, select best):
+
+- Mitigates local minima problem
+- Balances accuracy and execution time
+- Achieves >85% accuracy reliably
+
 ## 📊 Expected Results
 
-- **Training Accuracy** : >85%
-- **Execution Time** : ~1-2 minutes
-- **Output Files** : Decision boundary plots + metrics report
+| Configuration      | Dataset Size | Training Time | Accuracy |
+| ------------------ | ------------ | ------------- | -------- |
+| **Demo (current)** | 100 points   | ~30-40 min    | >85%     |
+| Extended           | 200 points   | ~60-90 min    | >85%     |
+| Full               | 400 points   | ~2-3 hours    | >90%     |
+
+**Output Files:**
+
+- Decision boundary visualization
+- Training convergence plot
+- Metrics report (accuracy, precision, recall)
+- Trained model parameters
 
 ## 🎓 Academic Context
 
@@ -95,8 +138,6 @@ proyecto_clasificador_cuantico/
 **Institution** : Universidad Intercontinental de la Empresa (UIE)
 
 **Program** : 4th Year Intelligent Systems Engineering
-
-**Development Time** : 5-6 weeks
 
 ## 👥 Authors
 
