@@ -61,18 +61,21 @@ class QuantumClassifier:
         training_history: Historial de entrenamiento
     """
 
-    def __init__(self, n_qubits: int = 2, n_params: int = 4, shots: int = 100):
+    def __init__(self, n_qubits: int = 2, n_params: int = 4, shots: int = 100, n_layers: int = 1):
         """
         Inicializa el clasificador cuántico.
 
         Args:
             n_qubits: Número de qubits (default: 2)
-            n_params: Número de parámetros (default: 4 para 2 qubits)
+            n_params: Número de parámetros (default: 4 para 1 capa, 8 para 2 capas)
             shots: Shots por medición (default: 100)
+            n_layers: Número de capas variacionales (default: 1)
         """
         self.n_qubits = n_qubits
         self.n_params = n_params
         self.shots = shots
+        # Soporte para múltiples capas variacionales
+        self.n_layers = n_layers
 
         # Inicializar parámetros aleatoriamente en [0, 2π]
         self.params = np.random.rand(n_params) * 2 * np.pi
@@ -105,7 +108,7 @@ class QuantumClassifier:
         # Predecir cada punto y contar errores
         for i in range(n_samples):
             prediction = predict_single_point(
-                X[i, 0], X[i, 1], params, self.shots)
+                X[i, 0], X[i, 1], params, self.shots, self.n_layers)
             if prediction != y[i]:
                 errors += 1
 
@@ -145,21 +148,34 @@ class QuantumClassifier:
             print(f"=== Entrenamiento del Clasificador Cuántico ===")
             print(f"Dataset: {X.shape[0]} puntos")
             print(f"Método: {method}")
+            print(f"Capas variacionales: {self.n_layers} (Parámetros: {self.n_params})")
             print(f"Máx iteraciones: {max_iter}\n")
 
         start_time = time.time()
 
-        # Callback para tracking de progreso
+        # Callback para mostrar progreso durante entrenamiento
         def callback(params):
             cost = self._cost_function(params, X, y)
             self.training_history['cost'].append(cost)
-            self.training_history['iteration'].append(
-                len(self.training_history['cost']))
-            self.training_history['time'].append(time.time() - start_time)
+            current_iter = len(self.training_history['cost'])
+            self.training_history['iteration'].append(current_iter)
+            elapsed_time = time.time() - start_time
+            self.training_history['time'].append(elapsed_time)
 
-            if verbose and len(self.training_history['cost']) % 10 == 0:
-                print(
-                    f"Iter {len(self.training_history['cost'])}: Cost = {cost:.4f}")
+            if verbose:
+                # Calcular barra de progreso
+                progress = current_iter / max_iter
+                bar_length = 30
+                filled_length = int(bar_length * progress)
+                bar = '█' * filled_length + '░' * (bar_length - filled_length)
+
+                # Calcular tiempo estimado
+                avg_time_per_iter = elapsed_time / current_iter if current_iter > 0 else 0
+                eta = avg_time_per_iter * (max_iter - current_iter)
+
+                # Mostrar barra (sobreescribir misma línea con \r)
+                print(f"\rÉpoca {current_iter}/{max_iter} [{bar}] "
+                      f"- loss: {cost:.4f} - ETA: {eta:.1f}s", end='', flush=True)
 
         # Optimización
         result = minimize(
@@ -180,7 +196,9 @@ class QuantumClassifier:
         iterations = getattr(result, 'nit', len(self.training_history['cost']))
 
         if verbose:
-            print(f"\n=== Entrenamiento Completado ===")
+            # Salto de línea después de la barra de progreso
+            print("\n")
+            print(f"=== Entrenamiento Completado ===")
             print(f"Convergió: {result.success}")
             print(f"Costo final: {result.fun:.4f}")
             print(f"Iteraciones: {iterations}")
@@ -204,12 +222,12 @@ class QuantumClassifier:
         Returns:
             np.ndarray: Predicciones (n_samples,) o int para un punto
         """
-        # Manejar single point
+        # Manejar single point (ahora con n_layers)
         if X.ndim == 1:
-            return predict_single_point(X[0], X[1], self.params, self.shots)
+            return predict_single_point(X[0], X[1], self.params, self.shots, self.n_layers)
 
-        # Manejar batch
-        return predict_batch(X, self.params, self.shots)
+        # Manejar batch (ahora con n_layers)
+        return predict_batch(X, self.params, self.shots, self.n_layers)
 
     def evaluate(self, X: np.ndarray, y: np.ndarray) -> float:
         """
@@ -238,6 +256,7 @@ class QuantumClassifier:
             'n_qubits': self.n_qubits,
             'n_params': self.n_params,
             'shots': self.shots,
+            'n_layers': self.n_layers,  # Guardar n_layers para compatibilidad
             'training_history': self.training_history
         }
 
@@ -260,6 +279,7 @@ class QuantumClassifier:
         self.n_qubits = data['n_qubits']
         self.n_params = data['n_params']
         self.shots = data['shots']
+        self.n_layers = data.get('n_layers', 1)  # Por compatibilidad con modelos antiguos
         self.training_history = data['training_history']
 
         print(f"Parámetros cargados desde: {filepath}")
