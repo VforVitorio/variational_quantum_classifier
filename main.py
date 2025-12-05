@@ -102,7 +102,8 @@ def train_parallel(X, y, n_attempts=3, n_params=8, shots=100, n_layers=2, max_it
     for i, seed in enumerate(seeds):
         thread = threading.Thread(
             target=train_attempt_thread,
-            args=(i, X, y, seed, n_params, shots, n_layers, max_iter, results_queue),
+            args=(i, X, y, seed, n_params, shots,
+                  n_layers, max_iter, results_queue),
             name=f"Attempt-{i+1}"
         )
         threads.append(thread)
@@ -117,7 +118,8 @@ def train_parallel(X, y, n_attempts=3, n_params=8, shots=100, n_layers=2, max_it
         print(f"✓ Intento {i+1} completado")
 
     total_time = time.time() - start_time
-    print(f"\nTiempo total paralelo: {total_time:.1f}s ({total_time/60:.1f} min)\n")
+    print(
+        f"\nTiempo total paralelo: {total_time:.1f}s ({total_time/60:.1f} min)\n")
 
     # Recolectar resultados
     results = []
@@ -129,7 +131,8 @@ def train_parallel(X, y, n_attempts=3, n_params=8, shots=100, n_layers=2, max_it
     if not valid_results:
         raise RuntimeError("Todos los intentos fallaron")
 
-    results_sorted = sorted(valid_results, key=lambda r: r['accuracy'], reverse=True)
+    results_sorted = sorted(
+        valid_results, key=lambda r: r['accuracy'], reverse=True)
 
     # Mostrar resumen
     print("Resumen de intentos:")
@@ -154,16 +157,38 @@ def main():
     # =========================================================================
     print("\n[1/5] Generando dataset de espirales...")
 
-    # Configuración del dataset (ajustar según necesidad)
-    # n_points: 50 (pruebas rápidas), 100 (estándar), 400 (producción)
-    X, y = make_spiral_dataset(n_points=100, noise=0.1, normalize=True)
+    # Configuración del dataset
+    # n_points: 50 (pruebas rápidas), 150 (estándar), 400 (producción)
+    X, y = make_spiral_dataset(n_points=150, noise=0.1, normalize=True)
 
     print(f"Dataset generado: {X.shape[0]} puntos")
     print(f"Distribución: Clase 0={np.sum(y==0)}, Clase 1={np.sum(y==1)}")
 
-    # Visualizar dataset
+    # =========================================================================
+    # SPLIT TRAIN/VALIDATION (80/20)
+    # =========================================================================
+    # Usar semilla fija para reproducibilidad
+    np.random.seed(42)
+
+    # Crear índices aleatorios
+    indices = np.random.permutation(len(X))
+    train_size = int(0.8 * len(X))
+
+    train_indices = indices[:train_size]
+    val_indices = indices[train_size:]
+
+    X_train, y_train = X[train_indices], y[train_indices]
+    X_val, y_val = X[val_indices], y[val_indices]
+
+    print(f"\nSplit train/validation (80/20):")
+    print(
+        f"  Train: {len(X_train)} puntos (Clase 0={np.sum(y_train==0)}, Clase 1={np.sum(y_train==1)})")
+    print(
+        f"  Val:   {len(X_val)} puntos (Clase 0={np.sum(y_val==0)}, Clase 1={np.sum(y_val==1)})")
+
+    # Visualizar dataset completo
     plot_dataset(X, y,
-                 title="Dataset de Espirales Entrelazadas",
+                 title="Dataset de Espirales Entrelazadas (150 puntos)",
                  save_path="results/dataset.png")
 
     # =========================================================================
@@ -173,7 +198,7 @@ def main():
 
     # Configuración
     n_attempts = 3  # 1: rápido, 3: estándar, 5-10: producción
-    USE_THREADING = True  # Activar/desactivar paralelización
+    USE_THREADING = False  # Desactivado (GIL no permite paralelismo real)
 
     # Parámetros del clasificador
     n_params = 8      # 2 capas × 2 qubits × 2 rotaciones
@@ -182,9 +207,9 @@ def main():
     max_iter = 80
 
     if USE_THREADING:
-        # Versión paralela (thread-safe siguiendo guía PyQuil)
+        # Versión paralela (no recomendada - GIL issue)
         best_classifier, best_training_result, best_accuracy, all_results = train_parallel(
-            X, y,
+            X_train, y_train,
             n_attempts=n_attempts,
             n_params=n_params,
             shots=shots,
@@ -192,9 +217,10 @@ def main():
             max_iter=max_iter
         )
     else:
-        # Versión secuencial (backup)
+        # Versión secuencial (recomendada)
         print(f"Intentos de entrenamiento: {n_attempts} (secuencial)\n")
         best_accuracy = 0
+        best_val_accuracy = 0
         best_classifier = None
         best_training_result = None
 
@@ -208,49 +234,75 @@ def main():
                 n_layers=n_layers
             )
 
+            # Entrenar solo con datos de entrenamiento
             training_result = classifier.train(
-                X, y,
+                X_train, y_train,
                 max_iter=max_iter,
-                method='COBYLA',
-                verbose=True
+                # method='COBYLA',  # Anterior: oscilaciones fuertes, convergencia lenta
+                method='SLSQP',     # Nuevo: convergencia más suave y rápida
+                verbose=True,
+                patience=30,        # Ajustado de 20 (era muy estricto)
+                # Ajustado de 1e-4 (ignoraba oscilaciones naturales)
+                min_delta=0.003
             )
 
-            accuracy = classifier.evaluate(X, y)
-            print(f"Accuracy: {accuracy:.2%}")
-            print(f"Costo final: {training_result['final_cost']:.4f}")
-            print(f"Tiempo: {training_result['time']:.1f}s\n")
+            # Evaluar en train y validation
+            train_accuracy = classifier.evaluate(X_train, y_train)
+            val_accuracy = classifier.evaluate(X_val, y_val)
 
-            if accuracy > best_accuracy:
-                best_accuracy = accuracy
+            print(f"\nTrain Accuracy: {train_accuracy:.2%}")
+            print(f"Val Accuracy:   {val_accuracy:.2%}")
+            print(f"Costo final: {training_result['final_cost']:.4f}")
+            print(f"Tiempo: {training_result['time']:.1f}s")
+
+            # Calcular overfitting gap
+            overfit_gap = train_accuracy - val_accuracy
+            if overfit_gap > 0.1:
+                print(f"⚠️  Posible overfitting (gap: {overfit_gap:.2%})")
+            print()
+
+            # Seleccionar mejor modelo basado en VALIDATION accuracy
+            if val_accuracy > best_val_accuracy:
+                best_val_accuracy = val_accuracy
+                best_accuracy = train_accuracy
                 best_classifier = classifier
                 best_training_result = training_result
-                print("★ Nuevo mejor modelo guardado!\n")
+                print("★ Nuevo mejor modelo guardado (basado en val accuracy)!\n")
 
-    print(f"\n★ Mejor accuracy obtenida: {best_accuracy:.2%}")
+    print(f"\n★ Mejor Train Accuracy: {best_accuracy:.2%}")
+    print(f"★ Mejor Val Accuracy:   {best_val_accuracy:.2%}")
 
     # =========================================================================
     # 3. EVALUACIÓN DETALLADA
     # =========================================================================
     print("\n[3/5] Evaluando mejor modelo...")
 
-    # Predicciones
-    y_pred = best_classifier.predict(X)
+    # Evaluar en ambos conjuntos
+    print("\nEvaluación en Train:")
+    y_pred_train = best_classifier.predict(X_train)
+    metrics_train = calculate_metrics(y_train, y_pred_train)
+    print_metrics(metrics_train)
 
-    # Calcular métricas
-    metrics = calculate_metrics(y, y_pred)
-    print_metrics(metrics)
+    print("\n" + "-" * 40)
+    print("Evaluación en Validation:")
+    y_pred_val = best_classifier.predict(X_val)
+    metrics_val = calculate_metrics(y_val, y_pred_val)
+    print_metrics(metrics_val)
+
+    # Métricas finales (usar validación para reporte)
+    final_metrics = metrics_val
 
     # =========================================================================
     # 4. VISUALIZACIÓN DE RESULTADOS
     # =========================================================================
     print("\n[4/5] Generando visualizaciones...")
 
-    # Visualización de frontera de decisión
+    # Visualización de frontera de decisión (con todos los datos)
     # resolution: 30 (rápido), 40 (estándar), 100 (alta calidad)
     plot_decision_boundary(
         best_classifier, X, y,
         resolution=40,
-        title="Frontera de Decisión Aprendida",
+        title="Frontera de Decisión Aprendida (Dataset Completo)",
         save_path="results/decision_boundary.png"
     )
 
@@ -266,8 +318,8 @@ def main():
     # =========================================================================
     print("\n[5/5] Guardando resultados...")
 
-    # Guardar métricas
-    save_results(metrics, best_training_result, "results/metrics.txt")
+    # Guardar métricas (validación)
+    save_results(final_metrics, best_training_result, "results/metrics.txt")
 
     # Guardar parámetros del mejor modelo
     best_classifier.save_params("results/best_model_params.pkl")
@@ -278,21 +330,25 @@ def main():
     print("\n" + "=" * 60)
     print("RESUMEN")
     print("=" * 60)
+    print(
+        f"Dataset: {len(X)} puntos (Train: {len(X_train)}, Val: {len(X_val)})")
     print(f"Intentos de entrenamiento: {n_attempts}")
-    print(f"Mejor Accuracy: {best_accuracy:.2%}")
+    print(f"Mejor Train Accuracy: {best_accuracy:.2%}")
+    print(f"Mejor Val Accuracy:   {best_val_accuracy:.2%}")
+    print(f"Overfitting gap:      {(best_accuracy - best_val_accuracy):.2%}")
     print(f"Tiempo mejor modelo: {best_training_result['time']:.2f}s")
     print(f"Iteraciones: {best_training_result['iterations']}")
+    if best_training_result.get('stopped_early'):
+        print(f"🛑 Early stopping activado")
     print("\nArchivos generados:")
     print("  - results/dataset.png")
     print("  - results/decision_boundary.png")
     print("  - results/training_convergence.png")
-    print("  - results/metrics.txt")
+    print("  - results/metrics.txt (validation metrics)")
     print("  - results/best_model_params.pkl")
     print("\nPipeline completado exitosamente!")
-    print("\nNota: Para datasets más grandes (400 puntos), considerar:")
-    print("  - Aumentar max_iter a 100-200")
-    print("  - Usar más attempts (5-10)")
-    print("  - Optimizar shots según precisión deseada")
+    print("\nNota: El modelo se seleccionó usando validation accuracy")
+    print("      para evitar overfitting.")
 
 
 if __name__ == "__main__":

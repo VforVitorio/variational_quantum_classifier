@@ -94,6 +94,8 @@ class QuantumClassifier:
         La función de costo es el porcentaje de predicciones incorrectas:
             Cost = (1/N) * Σ |y_pred - y_true|
 
+        Usa batch predictions para mayor eficiencia.
+
         Args:
             params: Parámetros actuales del circuito
             X: Features de forma (n_samples, 2)
@@ -102,18 +104,12 @@ class QuantumClassifier:
         Returns:
             float: Costo en rango [0, 1] donde 0 = clasificación perfecta
         """
-        n_samples = X.shape[0]
-        errors = 0
-
-        # Predecir cada punto y contar errores
-        for i in range(n_samples):
-            prediction = predict_single_point(
-                X[i, 0], X[i, 1], params, self.shots, self.n_layers)
-            if prediction != y[i]:
-                errors += 1
+        # Usar batch prediction para mayor eficiencia
+        predictions = predict_batch(X, params, self.shots, self.n_layers)
 
         # Calcular porcentaje de error
-        cost = errors / n_samples
+        errors = np.sum(predictions != y)
+        cost = errors / len(y)
 
         return cost
 
@@ -122,12 +118,14 @@ class QuantumClassifier:
               y: np.ndarray,
               max_iter: int = 200,
               method: str = 'COBYLA',
-              verbose: bool = True) -> Dict:
+              verbose: bool = True,
+              patience: int = 20,
+              min_delta: float = 1e-4) -> Dict:
         """
         Entrena el clasificador optimizando los parámetros.
 
         Utiliza scipy.optimize.minimize para encontrar parámetros que
-        minimizan la función de costo.
+        minimizan la función de costo con early stopping.
 
         Args:
             X: Features de entrenamiento (n_samples, 2)
@@ -136,6 +134,8 @@ class QuantumClassifier:
             method: Algoritmo de optimización (default: 'COBYLA')
                    Opciones: 'COBYLA', 'Nelder-Mead', 'Powell'
             verbose: Si mostrar progreso (default: True)
+            patience: Iteraciones sin mejora antes de parar (default: 20)
+            min_delta: Mejora mínima considerada significativa (default: 1e-4)
 
         Returns:
             dict: Información del entrenamiento
@@ -143,18 +143,29 @@ class QuantumClassifier:
                 - 'final_cost': Costo final
                 - 'iterations': Iteraciones realizadas
                 - 'time': Tiempo total
+                - 'stopped_early': Si se activó early stopping
         """
         if verbose:
             print(f"=== Entrenamiento del Clasificador Cuántico ===")
             print(f"Dataset: {X.shape[0]} puntos")
             print(f"Método: {method}")
-            print(f"Capas variacionales: {self.n_layers} (Parámetros: {self.n_params})")
-            print(f"Máx iteraciones: {max_iter}\n")
+            print(
+                f"Capas variacionales: {self.n_layers} (Parámetros: {self.n_params})")
+            print(f"Máx iteraciones: {max_iter}")
+            print(
+                f"Early stopping: patience={patience}, min_delta={min_delta}\n")
 
         start_time = time.time()
 
-        # Callback para mostrar progreso durante entrenamiento
+        # Variables para early stopping
+        best_cost = float('inf')
+        no_improvement_count = 0
+        early_stopped = False
+
+        # Callback para mostrar progreso y manejar early stopping
         def callback(params):
+            nonlocal best_cost, no_improvement_count, early_stopped
+
             cost = self._cost_function(params, X, y)
             self.training_history['cost'].append(cost)
             current_iter = len(self.training_history['cost'])
@@ -162,10 +173,28 @@ class QuantumClassifier:
             elapsed_time = time.time() - start_time
             self.training_history['time'].append(elapsed_time)
 
+            # Early stopping logic
+            if cost < best_cost - min_delta:
+                best_cost = cost
+                no_improvement_count = 0
+            else:
+                no_improvement_count += 1
+
+            # Si no hay mejora durante 'patience' iteraciones, detener
+            if no_improvement_count >= patience:
+                early_stopped = True
+                if verbose:
+                    print(
+                        f"\n\n⚠️  Early stopping activado en iteración {current_iter}")
+                    print(
+                        f"No hubo mejora en {patience} iteraciones consecutivas")
+                # Forzar que scipy pare
+                raise StopIteration
+
             if verbose:
                 # Calcular barra de progreso
                 progress = current_iter / max_iter
-                bar_length = 30
+                bar_length = 20
                 filled_length = int(bar_length * progress)
                 bar = '█' * filled_length + '░' * (bar_length - filled_length)
 
@@ -175,17 +204,28 @@ class QuantumClassifier:
 
                 # Mostrar barra (sobreescribir misma línea con \r)
                 print(f"\rÉpoca {current_iter}/{max_iter} [{bar}] "
-                      f"- loss: {cost:.4f} - ETA: {eta:.1f}s", end='', flush=True)
+                      f"loss: {cost:.4f} (best: {best_cost:.4f}) - "
+                      f"ETA: {eta:.1f}s - sin mejora: {no_improvement_count}/{patience}", end='', flush=True)
 
-        # Optimización
-        result = minimize(
-            fun=self._cost_function,
-            x0=self.params,
-            args=(X, y),
-            method=method,
-            options={'maxiter': max_iter},
-            callback=callback
-        )
+        # Optimización con manejo de early stopping
+        try:
+            result = minimize(
+                fun=self._cost_function,
+                x0=self.params,
+                args=(X, y),
+                method=method,
+                options={'maxiter': max_iter},
+                callback=callback
+            )
+        except StopIteration:
+            # Early stopping activado - usar últimos parámetros
+            result = type('Result', (), {
+                'x': self.params,  # Mantener parámetros actuales
+                'fun': best_cost,
+                'success': True,
+                'nit': len(self.training_history['cost']),
+                'message': 'Early stopping'
+            })()
 
         # Actualizar parámetros óptimos
         self.params = result.x
@@ -199,6 +239,8 @@ class QuantumClassifier:
             # Salto de línea después de la barra de progreso
             print("\n")
             print(f"=== Entrenamiento Completado ===")
+            if early_stopped:
+                print(f"🛑 Detenido por early stopping")
             print(f"Convergió: {result.success}")
             print(f"Costo final: {result.fun:.4f}")
             print(f"Iteraciones: {iterations}")
@@ -209,7 +251,8 @@ class QuantumClassifier:
             'final_cost': result.fun,
             'iterations': iterations,
             'time': training_time,
-            'message': result.message
+            'message': result.message,
+            'stopped_early': early_stopped
         }
 
     def predict(self, X: np.ndarray) -> np.ndarray:
@@ -279,7 +322,8 @@ class QuantumClassifier:
         self.n_qubits = data['n_qubits']
         self.n_params = data['n_params']
         self.shots = data['shots']
-        self.n_layers = data.get('n_layers', 1)  # Por compatibilidad con modelos antiguos
+        # Por compatibilidad con modelos antiguos
+        self.n_layers = data.get('n_layers', 1)
         self.training_history = data['training_history']
 
         print(f"Parámetros cargados desde: {filepath}")
