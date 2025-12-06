@@ -197,14 +197,14 @@ def main():
     print("\n[2/5] Entrenando clasificador (múltiples intentos)...")
 
     # Configuración
-    n_attempts = 3  # 1: rápido, 3: estándar, 5-10: producción
+    n_attempts = 1  # REDUCIDO: 3 → 1 (compensamos con mejor optimizador)
     USE_THREADING = False  # Desactivado (GIL no permite paralelismo real)
 
-    # Parámetros del clasificador
+    # Parámetros del clasificador (OPCIÓN A: COBYLA + más shots)
     n_params = 8      # 2 capas × 2 qubits × 2 rotaciones
-    shots = 100
-    n_layers = 2
-    max_iter = 80
+    shots = 500       # Aumentado 150→300→500 (reduce shot noise: 8% → 4.5%)
+    n_layers = 2      # Mantener arquitectura que funcionó
+    max_iter = 120    # Suficiente para convergencia
 
     if USE_THREADING:
         # Versión paralela (no recomendada - GIL issue)
@@ -238,12 +238,10 @@ def main():
             training_result = classifier.train(
                 X_train, y_train,
                 max_iter=max_iter,
-                method='COBYLA',  # SLSQP paraba en 1 iteración - volvemos a COBYLA
-                # method='SLSQP',     # Nuevo: convergencia más suave y rápida
+                method='COBYLA',    # Volvemos a COBYLA (demostró mejor convergencia)
                 verbose=True,
-                patience=30,        # Ajustado de 20 (era muy estricto)
-                # Ajustado de 1e-4 (ignoraba oscilaciones naturales)
-                min_delta=0.003
+                patience=40,        # Más permisivo que antes (era 30)
+                min_delta=0.002     # Más permisivo que antes (era 0.003)
             )
 
             # Evaluar en train y validation

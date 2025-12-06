@@ -337,15 +337,16 @@ def predict_single_point(x: float, y: float, params: np.ndarray, shots: int = 10
 
 def predict_batch(X: np.ndarray, params: np.ndarray, shots: int = 100, n_layers: int = 1) -> np.ndarray:
     """
-    Predice clases para múltiples puntos de forma vectorizada.
+    Predice clases para múltiples puntos reutilizando una única instancia QVM.
 
-    Itera sobre cada punto del dataset y aplica predict_single_point.
-    Útil para evaluación del modelo en conjunto de entrenamiento/test.
+    Optimización: En lugar de crear una QVM nueva para cada punto,
+    crea una sola instancia y la reutiliza para todas las predicciones.
+    Esto elimina inconsistencias de compilación y mejora el rendimiento.
 
     Args:
         X: Array de forma (n_samples, 2) con coordenadas de puntos
         params: Parámetros del clasificador
-        shots: Shots por predicción
+        shots: Shots por predicción (default: 100)
         n_layers: Número de capas variacionales (default: 1)
 
     Returns:
@@ -361,17 +362,48 @@ def predict_batch(X: np.ndarray, params: np.ndarray, shots: int = 100, n_layers:
         predictions = predict_batch(X, params, shots=100, n_layers=2)
 
     Nota:
-        Para datasets grandes, esta función puede ser lenta debido a
-        la ejecución individual de cada circuito. Optimizaciones futuras
-        podrían paralelizar las ejecuciones.
+        Esta versión refactorizada reutiliza la QVM para evitar
+        inconsistencias de compilación entre llamadas individuales.
     """
     n_samples = X.shape[0]
+    n_qubits = 2
     predictions = np.zeros(n_samples, dtype=int)
 
-    # Predecir cada punto individualmente
+    # Crear UNA SOLA instancia de QVM para todas las predicciones
+    qc = get_qc(f'{n_qubits}q-qvm')
+
+    # Predecir cada punto usando la MISMA QVM
     for i in range(n_samples):
-        predictions[i] = predict_single_point(
-            X[i, 0], X[i, 1], params, shots, n_layers)
+        # Construir circuito para este punto
+        circuit = build_circuit(X[i, 0], X[i, 1], params, n_layers=n_layers)
+
+        # Crear programa con mediciones
+        measurement_program = Program()
+        ro = measurement_program.declare('ro', 'BIT', n_qubits)
+        measurement_program += circuit
+
+        # Añadir mediciones
+        for q in range(n_qubits):
+            measurement_program += MEASURE(q, ro[q])
+
+        measurement_program.wrap_in_numshots_loop(shots)
+
+        # Ejecutar con la MISMA QVM (reutilizada)
+        executable = qc.compile(measurement_program)
+        result = qc.run(executable)
+
+        # Procesar mediciones
+        measurements = result.readout_data.get('ro')
+
+        # Combinar ambos qubits para clasificación
+        measurements_combined = measurements[:, 0] * 2 + measurements[:, 1]
+
+        # Votar: estados 0,1 → Clase 0;  estados 2,3 → Clase 1
+        votes_class_0 = np.sum((measurements_combined == 0) | (measurements_combined == 1))
+        votes_class_1 = np.sum((measurements_combined == 2) | (measurements_combined == 3))
+
+        # Retornar clase con más votos
+        predictions[i] = 0 if votes_class_0 > votes_class_1 else 1
 
     return predictions
 
