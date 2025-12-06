@@ -238,8 +238,8 @@ def main():
             training_result = classifier.train(
                 X_train, y_train,
                 max_iter=max_iter,
-                # method='COBYLA',  # Anterior: oscilaciones fuertes, convergencia lenta
-                method='SLSQP',     # Nuevo: convergencia más suave y rápida
+                method='COBYLA',  # SLSQP paraba en 1 iteración - volvemos a COBYLA
+                # method='SLSQP',     # Nuevo: convergencia más suave y rápida
                 verbose=True,
                 patience=30,        # Ajustado de 20 (era muy estricto)
                 # Ajustado de 1e-4 (ignoraba oscilaciones naturales)
