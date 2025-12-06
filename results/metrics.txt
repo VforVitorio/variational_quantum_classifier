@@ -3,16 +3,16 @@ RESULTADOS DEL CLASIFICADOR CUÁNTICO VARIACIONAL
 ==================================================
 
 --- Información de Entrenamiento ---
-Convergió: False
-Costo final: 0.3167
-Iteraciones: 74
-Tiempo: 2768.32s
+Convergió: True
+Costo final: 0.2083
+Iteraciones: 77
+Tiempo: 1732.02s
 
 --- Métricas de Evaluación ---
-Accuracy:  56.67%
-Precision: 70.59%
-Recall:    60.00%
+Accuracy:  76.67%
+Precision: 81.25%
+Recall:    76.47%
 
 --- Matriz de Confusión ---
-TN: 5    FP: 5   
-FN: 8    TP: 12  
+TN: 10   FP: 3   
+FN: 4    TP: 13  
