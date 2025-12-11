@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Script para regenerar visualizaciones con mejor calidad
 sin necesidad de re-entrenar el modelo.
@@ -12,6 +11,7 @@ import pickle
 from src.classifier import QuantumClassifier
 from src.utils import plot_decision_boundary
 from data.dataset_generator import make_spiral_dataset
+
 
 def main():
     print("=" * 70)
@@ -47,7 +47,8 @@ def main():
             n_layers=n_layers
         )
         classifier.params = best_params
-        print(f"Clasificador listo: shots={classifier.shots}, layers={n_layers}")
+        print(
+            f"Clasificador listo: shots={classifier.shots}, layers={n_layers}")
 
     except FileNotFoundError:
         print("Error: No se encontró results/best_model_params.pkl")
@@ -81,6 +82,7 @@ def main():
     print("  - Menos pixelación")
     print("  - Reducción de ruido cuántico")
     print("=" * 70)
+
 
 if __name__ == "__main__":
     main()
