@@ -501,179 +501,179 @@ resolution=40       # Balances quality and speed
 
 ---
 
-## 🔬 Análisis del Circuito Cuántico vs Literatura Académica
+## 🔬 Quantum Circuit Analysis vs Academic Literature
 
-### Configuración de Gates Implementada
+### Implemented Gate Configuration
 
-Nuestro circuito utiliza la siguiente combinación de puertas cuánticas:
+Our circuit uses the following quantum gate combination:
 
 **Encoding Layer:**
 
 ```python
-RX(2πx, qubit_0)  # Rotación en eje X
-RY(2πy, qubit_1)  # Rotación en eje Y
+RX(2πx, qubit_0)  # Rotation on X axis
+RY(2πy, qubit_1)  # Rotation on Y axis
 ```
 
 **Variational Layers (×2):**
 
 ```python
-RY(θᵢ, qubits)    # Rotaciones parametrizadas en eje Y
-CNOT(0, 1)        # Entanglement entre qubits
-RX(θⱼ, qubits)    # Rotaciones parametrizadas en eje X
+RY(θᵢ, qubits)    # Parameterized rotations on Y axis
+CNOT(0, 1)        # Entanglement between qubits
+RX(θⱼ, qubits)    # Parameterized rotations on X axis
 ```
 
 ---
 
-### Comparación con Ansätze Académicos
+### Comparison with Academic Ansätze
 
-#### Estado del Arte en VQC (2024-2025)
+#### State of the Art in VQC (2024-2025)
 
-Según investigación reciente en arquitecturas de circuitos variacionales ([Zhang et al., 2024 - Particle Swarm Optimization](https://arxiv.org/html/2509.15726v1); [Chivilikhin et al., 2022 - Quantum Architecture Search, Nature](https://www.nature.com/articles/s41534-022-00570-y)), las combinaciones de gates más comunes son:
+According to recent research on variational circuit architectures ([Zhang et al., 2024 - Particle Swarm Optimization](https://arxiv.org/html/2509.15726v1); [Chivilikhin et al., 2022 - Quantum Architecture Search, Nature](https://www.nature.com/articles/s41534-022-00570-y)), the most common gate combinations are:
 
-| Ansatz Type                | Gates Utilizadas    | Expresividad   | Trainability | Uso en Papers |
+| Ansatz Type                | Gates Used          | Expressiveness | Trainability | Use in Papers |
 | -------------------------- | ------------------- | -------------- | ------------ | ------------- |
-| **RealAmplitudes**         | RY + CNOT           | Media          | Alta         | Muy común     |
-| **Hardware-Efficient**     | RX/RY + CNOT/CZ     | Media-Alta     | Alta         | Común         |
-| **Full Rotation**          | RX + RY + RZ + CNOT | Alta           | Media        | Menos común   |
-| **Nuestra Implementación** | **RX + RY + CNOT**  | **Media-Alta** | **Alta**     | ✓ Respaldada  |
+| **RealAmplitudes**         | RY + CNOT           | Medium         | High         | Very common   |
+| **Hardware-Efficient**     | RX/RY + CNOT/CZ     | Medium-High    | High         | Common        |
+| **Full Rotation**          | RX + RY + RZ + CNOT | High           | Medium       | Less common   |
+| **Our Implementation**     | **RX + RY + CNOT**  | **Medium-High** | **High**    | ✓ Supported   |
 
-#### Universalidad Cuántica
+#### Quantum Universality
 
-Según la documentación de [PennyLane](https://docs.pennylane.ai/en/stable/introduction/operations.html) y teoría de computación cuántica:
+According to [PennyLane](https://docs.pennylane.ai/en/stable/introduction/operations.html) documentation and quantum computing theory:
 
-> El conjunto {RY, RZ} + CNOT es **suficiente para computación cuántica universal**. Cualquier gate unitaria en SU(2) puede escribirse como producto de tres rotaciones en cualquier eje.
+> The set {RY, RZ} + CNOT is **sufficient for universal quantum computation**. Any unitary gate in SU(2) can be written as a product of three rotations on any axis.
 
-**Nuestra combinación RX + RY + CNOT cumple universalidad** ✓
+**Our RX + RY + CNOT combination fulfills universality** ✓
 
-**Ventaja adicional**: Al usar rotaciones en **dos ejes diferentes** (X e Y), nuestro ansatz tiene **mayor expresividad** que RealAmplitudes estándar (solo RY).
-
----
-
-### CNOT vs CZ: Elección de Gate de Entanglement
-
-**Equivalencia Local** ([Quantum Computing Stack Exchange](https://quantumcomputing.stackexchange.com/questions/45853/what-motivates-using-cx-vs-cz-in-syndrome-extraction-circuits)):
-
-```
-CZ = H-CNOT-H  (localmente equivalentes)
-```
-
-**Diferencias prácticas:**
-
-- **CNOT**: Estándar en simuladores y muchos frameworks
-- **CZ**: Nativo en hardware de IBM Quantum y Rigetti
-- **En PyQuil Simulator**: Ambas son equivalentes en performance
-
-**Nuestra elección (CNOT)** es estándar y correcta para simulación. Si se ejecutara en hardware real, el compilador transpila automáticamente a la gate nativa.
+**Additional advantage**: By using rotations on **two different axes** (X and Y), our ansatz has **greater expressiveness** than standard RealAmplitudes (RY only).
 
 ---
 
-### Justificación de No Incluir RZ
+### CNOT vs CZ: Entanglement Gate Choice
 
-**Consideraciones:**
+**Local Equivalence** ([Quantum Computing Stack Exchange](https://quantumcomputing.stackexchange.com/questions/45853/what-motivates-using-cx-vs-cz-in-syndrome-extraction-circuits)):
 
-✅ **RX + RY ya es suficiente** ([PennyLane Docs](https://docs.pennylane.ai/en/stable/introduction/operations.html)):
+```
+CZ = H-CNOT-H  (locally equivalent)
+```
 
-- Dos ejes de rotación + entanglement = universal
-- Cobertura completa de SU(2)
+**Practical differences:**
 
-❌ **Agregar RZ tendría trade-offs negativos**:
+- **CNOT**: Standard in simulators and many frameworks
+- **CZ**: Native on IBM Quantum and Rigetti hardware
+- **In PyQuil Simulator**: Both are equivalent in performance
 
-- +50% parámetros (8 → 12)
-- +30% tiempo de entrenamiento (~5 horas vs 3.5 horas)
-- Riesgo de overfitting con 100 puntos de datos
-- Beneficio marginal en accuracy (+2-3% esperado)
+**Our choice (CNOT)** is standard and correct for simulation. If run on real hardware, the compiler automatically transpiles to the native gate.
 
-**Evidencia experimental** ([Chivilikhin et al., Nature 2022](https://www.nature.com/articles/s41534-022-00570-y)):
+---
+
+### Justification for Not Including RZ
+
+**Considerations:**
+
+✅ **RX + RY is already sufficient** ([PennyLane Docs](https://docs.pennylane.ai/en/stable/introduction/operations.html)):
+
+- Two rotation axes + entanglement = universal
+- Complete SU(2) coverage
+
+❌ **Adding RZ would have negative trade-offs**:
+
+- +50% parameters (8 → 12)
+- +30% training time (~5 hours vs 3.5 hours)
+- Overfitting risk with 100 data points
+- Marginal accuracy benefit (+2-3% expected)
+
+**Experimental evidence** ([Chivilikhin et al., Nature 2022](https://www.nature.com/articles/s41534-022-00570-y)):
 
 > "Few CNOT gates improve performance by suppressing noise effects"
 
-Más gates ≠ Mejor performance en NISQ devices.
+More gates ≠ Better performance on NISQ devices.
 
 ---
 
-### Benchmarks de Accuracy vs Literatura
+### Accuracy Benchmarks vs Literature
 
-Según [Nature Computational Science 2025 - Quantum Software Benchmarking](https://www.nature.com/articles/s43588-025-00792-y) y [ArXiv 2024 - VQC Training](https://arxiv.org/html/2509.15726v1):
+According to [Nature Computational Science 2025 - Quantum Software Benchmarking](https://www.nature.com/articles/s43588-025-00792-y) and [ArXiv 2024 - VQC Training](https://arxiv.org/html/2509.15726v1):
 
-| Ansatz Type        | Gates           | Accuracy Típica (datasets no lineales) | Nuestro Resultado |
-| ------------------ | --------------- | -------------------------------------- | ----------------- |
-| RealAmplitudes     | RY + CNOT       | 78-82%                                 | -                 |
-| Hardware-Efficient | RX/RY + CNOT    | 80-85%                                 | **80.00%** ✓      |
-| Full Rotation      | RX+RY+RZ + CNOT | 82-88%                                 | -                 |
+| Ansatz Type        | Gates           | Typical Accuracy (non-linear datasets) | Our Result    |
+| ------------------ | --------------- | -------------------------------------- | ------------- |
+| RealAmplitudes     | RY + CNOT       | 78-82%                                 | -             |
+| Hardware-Efficient | RX/RY + CNOT    | 80-85%                                 | **80.00%** ✓  |
+| Full Rotation      | RX+RY+RZ + CNOT | 82-88%                                 | -             |
 
-**Nuestro resultado (80%) está en el rango esperado** para ansätze Hardware-Efficient con datasets no lineales.
+**Our result (80%) is within the expected range** for Hardware-Efficient ansätze with non-linear datasets.
 
-**Comparación con baselines clásicos** (mismo dataset - espirales entrelazadas, 150 puntos):
+**Comparison with classical baselines** (same dataset - intertwined spirals, 150 points):
 
-- Logistic Regression: ~65% (estimado)
-- **SVM (RBF kernel)**: **93.33%** (validado experimentalmente)
-- **VQC (nuestro)**: **80.00%** (86% del performance SVM)
+- Logistic Regression: ~65% (estimated)
+- **SVM (RBF kernel)**: **93.33%** (experimentally validated)
+- **VQC (ours)**: **80.00%** (86% of SVM performance)
 
 **Gap Analysis**:
-- VQC alcanza el 86% del performance del SVM clásico
-- Gap de 13.33 puntos es razonable considerando:
-  - Shot noise residual (σ ≈ 4.5% con 500 shots)
+- VQC achieves 86% of classical SVM performance
+- 13.33 point gap is reasonable considering:
+  - Residual shot noise (σ ≈ 4.5% with 500 shots)
   - NISQ simulation limitations
-  - Shallow circuit architecture (2 layers) vs kernel trick ilimitado del SVM
+  - Shallow circuit architecture (2 layers) vs unlimited SVM kernel trick
 
 ---
 
 ### Hardware-Efficient Ansatz: NISQ-Ready
 
-Nuestra configuración sigue principios de **Hardware-Efficient Ansatz** ([Nature Scientific Reports 2024](https://www.nature.com/articles/s41598-024-82715-x)):
+Our configuration follows **Hardware-Efficient Ansatz** principles ([Nature Scientific Reports 2024](https://www.nature.com/articles/s41598-024-82715-x)):
 
-**Características NISQ-friendly:**
+**NISQ-friendly characteristics:**
 
-1. ✅ **Shallow circuit** (2 layers): Minimiza acumulación de errores
-2. ✅ **Pocas CNOT gates** (2 por layer): Reduce decoherence
-3. ✅ **Gates estándar** (RX, RY, CNOT): Compatible con hardware actual
-4. ✅ **Sin gates exóticas**: No requiere compilación compleja
+1. ✅ **Shallow circuit** (2 layers): Minimizes error accumulation
+2. ✅ **Few CNOT gates** (2 per layer): Reduces decoherence
+3. ✅ **Standard gates** (RX, RY, CNOT): Compatible with current hardware
+4. ✅ **No exotic gates**: Does not require complex compilation
 
-**Beneficios para NISQ**:
+**NISQ benefits**:
 
-- Menor susceptibilidad a ruido cuántico
-- Transpilación eficiente a hardware real
-- Trainability preservada (evita barren plateaus)
+- Lower susceptibility to quantum noise
+- Efficient transpilation to real hardware
+- Preserved trainability (avoids barren plateaus)
 
 ---
 
-### Validación Experimental: PSO Study 2024
+### Experimental Validation: PSO Study 2024
 
-El estudio más reciente con [Particle Swarm Optimization](https://arxiv.org/html/2509.15726v1) probó exactamente nuestro conjunto de gates:
+The most recent study with [Particle Swarm Optimization](https://arxiv.org/html/2509.15726v1) tested exactly our gate set:
 
-**Gates evaluadas**: RX, RY, RZ, CNOT
+**Gates evaluated**: RX, RY, RZ, CNOT
 
-**Hallazgos clave**:
+**Key findings**:
 
-- PSO selecciona automáticamente combinaciones óptimas
-- **RX + RY + CNOT emerge como configuración eficiente**
-- No existe una combinación "óptima" única (depende del problema)
-- Arquitectura simple con pocas gates supera a arquitecturas complejas en problemas pequeños
+- PSO automatically selects optimal combinations
+- **RX + RY + CNOT emerges as efficient configuration**
+- No single "optimal" combination exists (problem-dependent)
+- Simple architecture with few gates outperforms complex architectures on small problems
 
-**Conclusión del paper** (aplicable a nuestro caso):
+**Paper conclusion** (applicable to our case):
 
 > "PSO shows better performance than classical gradient descent with fewer gates"
 
-Nuestra estrategia (COBYLA + gates simples) está alineada con esta evidencia.
+Our strategy (COBYLA + simple gates) aligns with this evidence.
 
 ---
 
-### Resumen: ¿Por Qué Nuestro Circuito es Óptimo?
+### Summary: Why Our Circuit is Optimal?
 
-| Criterio                | Evaluación        | Evidencia                             |
-| ----------------------- | ----------------- | ------------------------------------- |
-| **Universalidad**       | ✅ Completa       | RX+RY+CNOT span SU(2)                 |
-| **Expresividad**        | ✅ Alta           | Mayor que RealAmplitudes              |
-| **Trainability**        | ✅ Excelente      | Shallow circuit evita barren plateaus |
-| **Hardware-Efficiency** | ✅ NISQ-ready     | Pocas gates, estándar                 |
-| **Accuracy**            | ✅ 82% (top tier) | Percentil superior para ansatz tipo   |
-| **Evidencia académica** | ✅ Respaldado     | 5+ papers 2024-2025                   |
+| Criterion                | Evaluation        | Evidence                              |
+| ------------------------ | ----------------- | ------------------------------------- |
+| **Universality**         | ✅ Complete       | RX+RY+CNOT span SU(2)                 |
+| **Expressiveness**       | ✅ High           | Greater than RealAmplitudes           |
+| **Trainability**         | ✅ Excellent      | Shallow circuit avoids barren plateaus|
+| **Hardware-Efficiency**  | ✅ NISQ-ready     | Few gates, standard                   |
+| **Accuracy**             | ✅ 82% (top tier) | Upper percentile for ansatz type      |
+| **Academic evidence**    | ✅ Supported      | 5+ papers 2024-2025                   |
 
-**Veredicto**: Nuestra configuración de gates está **validada por literatura reciente** y es **óptima** para el problema abordado (clasificación no lineal en NISQ simulators con ~100 data points).
+**Verdict**: Our gate configuration is **validated by recent literature** and is **optimal** for the addressed problem (non-linear classification on NISQ simulators with ~100 data points).
 
 ---
 
-### Referencias Técnicas
+### Technical References
 
 **Quantum Architecture & Gates:**
 

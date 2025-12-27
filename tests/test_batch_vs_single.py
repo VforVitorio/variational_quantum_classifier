@@ -1,13 +1,13 @@
 """
-Test: Verificación de predict_batch vs predict_single_point
+Test: Verification of predict_batch vs predict_single_point
 
-Comprueba que predict_batch devuelve exactamente los mismos resultados
-que llamar a predict_single_point individualmente para cada punto.
+Checks that predict_batch returns exactly the same results
+as calling predict_single_point individually for each point.
 
-Esto es crítico porque el cambio a batch predictions podría haber
-introducido un bug que explique la degradación del 82% → 53% accuracy.
+This is critical because the change to batch predictions could have
+introduced a bug that explains the degradation from 82% → 53% accuracy.
 
-Uso:
+Usage:
     python test_batch_vs_single.py
 """
 
@@ -15,7 +15,7 @@ import numpy as np
 import sys
 import os
 
-# Añadir directorio raíz al path (tests/ -> raíz)
+# Add root directory to path (tests/ -> root)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from src.quantum_circuit import predict_single_point, predict_batch
 from data.dataset_generator import make_spiral_dataset
@@ -23,28 +23,28 @@ from data.dataset_generator import make_spiral_dataset
 
 def test_batch_vs_single_predictions(X, params, shots, n_layers):
     """
-    Compara las predicciones de batch vs single para todos los puntos.
+    Compares batch vs single predictions for all points.
 
     Returns:
         tuple: (all_match, differences, batch_preds, single_preds)
     """
-    print(f"Comparando predicciones para {len(X)} puntos...")
-    print(f"  Parámetros: {len(params)} params")
+    print(f"Comparing predictions for {len(X)} points...")
+    print(f"  Parameters: {len(params)} params")
     print(f"  Shots: {shots}")
     print(f"  Layers: {n_layers}\n")
 
-    # Predicciones con batch
-    print("Ejecutando predict_batch...")
+    # Batch predictions
+    print("Running predict_batch...")
     batch_preds = predict_batch(X, params, shots, n_layers)
 
-    # Predicciones individuales
-    print("Ejecutando predict_single_point para cada punto...")
+    # Individual predictions
+    print("Running predict_single_point for each point...")
     single_preds = np.array([
         predict_single_point(X[i, 0], X[i, 1], params, shots, n_layers)
         for i in range(len(X))
     ])
 
-    # Comparar
+    # Compare
     matches = batch_preds == single_preds
     all_match = np.all(matches)
 
@@ -63,13 +63,13 @@ def test_batch_vs_single_predictions(X, params, shots, n_layers):
 
 def test_with_multiple_trials(X, params, shots, n_layers, n_trials=5):
     """
-    Ejecuta múltiples trials para detectar inconsistencias estocásticas.
+    Runs multiple trials to detect stochastic inconsistencies.
 
-    Con mediciones cuánticas, las predicciones pueden variar entre ejecuciones
-    debido al ruido de shot. Esto verifica si batch y single tienen la misma
-    distribución de resultados.
+    With quantum measurements, predictions can vary between executions
+    due to shot noise. This verifies if batch and single have the same
+    result distribution.
     """
-    print(f"\nEjecutando {n_trials} trials para análisis estadístico...")
+    print(f"\nRunning {n_trials} trials for statistical analysis...")
 
     batch_results = []
     single_results = []
@@ -88,15 +88,15 @@ def test_with_multiple_trials(X, params, shots, n_layers, n_trials=5):
 
         print(" OK")
 
-    # Analizar consistencia
+    # Analyze consistency
     batch_results = np.array(batch_results)  # (n_trials, n_points)
     single_results = np.array(single_results)
 
-    # Para cada punto, calcular proporción de veces que predice clase 1
+    # For each point, calculate proportion of times it predicts class 1
     batch_class1_rate = np.mean(batch_results, axis=0)  # (n_points,)
     single_class1_rate = np.mean(single_results, axis=0)
 
-    # Calcular diferencias
+    # Calculate differences
     rate_differences = np.abs(batch_class1_rate - single_class1_rate)
 
     return batch_class1_rate, single_class1_rate, rate_differences
@@ -104,27 +104,27 @@ def test_with_multiple_trials(X, params, shots, n_layers, n_trials=5):
 
 if __name__ == "__main__":
     print("="*60)
-    print("TEST: Verificación predict_batch vs predict_single_point")
+    print("TEST: Verification predict_batch vs predict_single_point")
     print("="*60)
 
-    # Generar dataset pequeño de prueba
-    print("\n[1/3] Generando dataset de prueba...")
+    # Generate small test dataset
+    print("\n[1/3] Generating test dataset...")
     np.random.seed(42)
     X_test, y_test = make_spiral_dataset(n_points=30, noise=0.1, normalize=True)
-    print(f"Dataset: {len(X_test)} puntos")
+    print(f"Dataset: {len(X_test)} points")
 
-    # Parámetros de prueba (aleatorios pero fijos)
+    # Test parameters (random but fixed)
     n_params = 8
     n_layers = 2
     shots = 100
 
     params = np.random.rand(n_params) * 2 * np.pi
-    print(f"Parámetros aleatorios: {n_params} valores")
-    print(f"Configuración: {n_layers} layers, {shots} shots")
+    print(f"Random parameters: {n_params} values")
+    print(f"Configuration: {n_layers} layers, {shots} shots")
 
-    # Test 1: Comparación directa
+    # Test 1: Direct comparison
     print("\n" + "="*60)
-    print("[2/3] TEST 1: Comparación Directa (1 ejecución)")
+    print("[2/3] TEST 1: Direct Comparison (1 execution)")
     print("="*60)
 
     all_match, differences, batch_preds, single_preds = test_batch_vs_single_predictions(
@@ -132,19 +132,19 @@ if __name__ == "__main__":
     )
 
     if all_match:
-        print("\n✅ TODAS las predicciones coinciden!")
-        print(f"   {len(X_test)}/{len(X_test)} puntos predichos idénticamente")
+        print("\n✅ ALL predictions match!")
+        print(f"   {len(X_test)}/{len(X_test)} points predicted identically")
     else:
-        print(f"\n❌ DISCREPANCIAS DETECTADAS!")
-        print(f"   {len(differences)}/{len(X_test)} puntos difieren")
-        print(f"\nDetalles de las discrepancias:")
-        for diff in differences[:10]:  # Mostrar primeras 10
-            print(f"  Punto {diff['index']}: {diff['point']}")
+        print(f"\n❌ DISCREPANCIES DETECTED!")
+        print(f"   {len(differences)}/{len(X_test)} points differ")
+        print(f"\nDiscrepancy details:")
+        for diff in differences[:10]:  # Show first 10
+            print(f"  Point {diff['index']}: {diff['point']}")
             print(f"    batch_pred:  {diff['batch_pred']}")
             print(f"    single_pred: {diff['single_pred']}")
 
-    # Mostrar primeras predicciones
-    print("\nPrimeras 10 predicciones:")
+    # Show first predictions
+    print("\nFirst 10 predictions:")
     print("  Index | X[0]   | X[1]   | Batch | Single | Match")
     print("  " + "-"*54)
     for i in range(min(10, len(X_test))):
@@ -152,59 +152,59 @@ if __name__ == "__main__":
         print(f"  {i:5d} | {X_test[i,0]:6.3f} | {X_test[i,1]:6.3f} | "
               f"{batch_preds[i]:5d} | {single_preds[i]:6d} | {match_symbol}")
 
-    # Test 2: Análisis estadístico con múltiples trials
+    # Test 2: Statistical analysis with multiple trials
     print("\n" + "="*60)
-    print("[3/3] TEST 2: Análisis Estadístico (5 trials)")
+    print("[3/3] TEST 2: Statistical Analysis (5 trials)")
     print("="*60)
 
     batch_rates, single_rates, rate_diffs = test_with_multiple_trials(
         X_test, params, shots, n_layers, n_trials=5
     )
 
-    print("\nAnálisis de tasas de predicción (proporción de clase 1):")
-    print("  Máxima diferencia: {:.2%}".format(np.max(rate_diffs)))
-    print("  Promedio diferencias: {:.2%}".format(np.mean(rate_diffs)))
-    print("  Desviación estándar: {:.2%}".format(np.std(rate_diffs)))
+    print("\nPrediction rate analysis (proportion of class 1):")
+    print("  Maximum difference: {:.2%}".format(np.max(rate_diffs)))
+    print("  Average differences: {:.2%}".format(np.mean(rate_diffs)))
+    print("  Standard deviation: {:.2%}".format(np.std(rate_diffs)))
 
-    # Determinar si las diferencias son significativas
-    # Con shots=100, esperamos variación de ~10% debido a ruido cuántico
-    expected_shot_noise = 1.0 / np.sqrt(shots)  # ~10% para shots=100
+    # Determine if differences are significant
+    # With shots=100, we expect ~10% variation due to quantum noise
+    expected_shot_noise = 1.0 / np.sqrt(shots)  # ~10% for shots=100
 
     if np.max(rate_diffs) < expected_shot_noise * 2:
-        print(f"\n✅ Diferencias DENTRO del ruido cuántico esperado (~{expected_shot_noise:.1%})")
-        print("   batch y single son estadísticamente equivalentes")
+        print(f"\n✅ Differences WITHIN expected quantum noise (~{expected_shot_noise:.1%})")
+        print("   batch and single are statistically equivalent")
     else:
-        print(f"\n⚠️ Diferencias MAYORES al ruido esperado (~{expected_shot_noise:.1%})")
-        print("   Posible inconsistencia entre batch y single")
+        print(f"\n⚠️ Differences LARGER than expected noise (~{expected_shot_noise:.1%})")
+        print("   Possible inconsistency between batch and single")
 
-    # Puntos con mayor discrepancia
+    # Points with highest discrepancy
     top_discrepancies = np.argsort(rate_diffs)[::-1][:5]
-    print("\nPuntos con mayor discrepancia (top 5):")
-    print("  Index | Batch Rate | Single Rate | Diferencia")
+    print("\nPoints with highest discrepancy (top 5):")
+    print("  Index | Batch Rate | Single Rate | Difference")
     print("  " + "-"*50)
     for idx in top_discrepancies:
         print(f"  {idx:5d} | {batch_rates[idx]:10.2%} | {single_rates[idx]:11.2%} | "
               f"{rate_diffs[idx]:10.2%}")
 
-    # Conclusión
+    # Conclusion
     print("\n" + "="*60)
-    print("CONCLUSIÓN")
+    print("CONCLUSION")
     print("="*60)
 
     if all_match and np.max(rate_diffs) < expected_shot_noise * 2:
-        print("✅ predict_batch y predict_single_point son EQUIVALENTES")
-        print("   El cambio a batch predictions NO es la causa del problema")
-        print("\nEl problema debe estar en otro lado:")
-        print("  - Cambios en el optimizer (COBYLA/SLSQP)")
-        print("  - Parámetros de early stopping")
-        print("  - Dataset demasiado pequeño (120 train vs 2000 típico)")
-        print("  - Pocas layers (2 vs 5-6 típico)")
+        print("✅ predict_batch and predict_single_point are EQUIVALENT")
+        print("   The change to batch predictions is NOT the cause of the problem")
+        print("\nThe problem must be elsewhere:")
+        print("  - Changes in optimizer (COBYLA/SLSQP)")
+        print("  - Early stopping parameters")
+        print("  - Dataset too small (120 train vs 2000 typical)")
+        print("  - Too few layers (2 vs 5-6 typical)")
     elif not all_match:
-        print("❌ predict_batch y predict_single_point NO coinciden")
-        print("   BUG DETECTADO en predict_batch!")
-        print("\nEsto podría explicar la degradación 82% → 53%")
+        print("❌ predict_batch and predict_single_point DO NOT match")
+        print("   BUG DETECTED in predict_batch!")
+        print("\nThis could explain the degradation 82% → 53%")
     else:
-        print("⚠️ Diferencias estadísticas detectadas entre batch y single")
-        print("   Revisar implementación de predict_batch")
+        print("⚠️ Statistical differences detected between batch and single")
+        print("   Review predict_batch implementation")
 
     print("="*60)

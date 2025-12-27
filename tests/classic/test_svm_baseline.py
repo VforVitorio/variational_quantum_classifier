@@ -1,10 +1,10 @@
 """
-Test: SVM Clásico con Kernel RBF - Baseline de Comparación
+Test: Classical SVM with RBF Kernel - Comparison Baseline
 
-Entrena un SVM clásico con kernel RBF en el mismo dataset de espirales
-para tener un baseline de comparación con el clasificador cuántico.
+Trains a classical SVM with RBF kernel on the same spiral dataset
+to have a comparison baseline with the quantum classifier.
 
-Uso:
+Usage:
     python test_svm_baseline.py
 """
 
@@ -15,13 +15,13 @@ import matplotlib.pyplot as plt
 import sys
 import os
 
-# Añadir directorio raíz al path (tests/classic/ -> raíz)
+# Add root directory to path (tests/classic/ -> root)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from data.dataset_generator import make_spiral_dataset
 
 def plot_svm_decision_boundary(X, y, clf, title="SVM Decision Boundary"):
-    """Visualiza la frontera de decisión del SVM."""
-    h = 0.02  # step size en mesh
+    """Visualizes the SVM decision boundary."""
+    h = 0.02  # step size in mesh
 
     x_min, x_max = X[:, 0].min() - 0.1, X[:, 0].max() + 0.1
     y_min, y_max = X[:, 1].min() - 0.1, X[:, 1].max() + 0.1
@@ -33,30 +33,30 @@ def plot_svm_decision_boundary(X, y, clf, title="SVM Decision Boundary"):
 
     plt.figure(figsize=(10, 8))
     plt.contourf(xx, yy, Z, alpha=0.4, cmap='RdYlBu')
-    plt.scatter(X[y==0, 0], X[y==0, 1], c='red', label='Clase 0', edgecolors='k', s=50)
-    plt.scatter(X[y==1, 0], X[y==1, 1], c='blue', label='Clase 1', edgecolors='k', s=50)
+    plt.scatter(X[y==0, 0], X[y==0, 1], c='red', label='Class 0', edgecolors='k', s=50)
+    plt.scatter(X[y==1, 0], X[y==1, 1], c='blue', label='Class 1', edgecolors='k', s=50)
     plt.xlabel('X')
     plt.ylabel('Y')
     plt.title(title)
     plt.legend()
     plt.tight_layout()
     plt.savefig('results/classic/svm_baseline_boundary.png', dpi=150)
-    print(f"Frontera de decisión guardada en: results/classic/svm_baseline_boundary.png")
+    print(f"Decision boundary saved at: results/classic/svm_baseline_boundary.png")
     plt.close()
 
 
 if __name__ == "__main__":
     print("="*60)
-    print("TEST: SVM Clásico con Kernel RBF - Baseline")
+    print("TEST: Classical SVM with RBF Kernel - Baseline")
     print("="*60)
 
-    # Generar dataset (mismo que el VQC)
-    print("\n[1/4] Generando dataset de espirales...")
+    # Generate dataset (same as VQC)
+    print("\n[1/4] Generating spiral dataset...")
     X, y = make_spiral_dataset(n_points=150, noise=0.1, normalize=True)
-    print(f"Dataset generado: {len(X)} puntos")
-    print(f"Distribución: Clase 0={np.sum(y==0)}, Clase 1={np.sum(y==1)}")
+    print(f"Dataset generated: {len(X)} points")
+    print(f"Distribution: Class 0={np.sum(y==0)}, Class 1={np.sum(y==1)}")
 
-    # Split train/val (80/20 - igual que VQC)
+    # Split train/val (80/20 - same as VQC)
     np.random.seed(42)
     indices = np.random.permutation(len(X))
     train_size = int(0.8 * len(X))
@@ -68,11 +68,11 @@ if __name__ == "__main__":
     X_val, y_val = X[val_indices], y[val_indices]
 
     print(f"\nSplit train/validation (80/20):")
-    print(f"  Train: {len(X_train)} puntos (Clase 0={np.sum(y_train==0)}, Clase 1={np.sum(y_train==1)})")
-    print(f"  Val:   {len(X_val)} puntos (Clase 0={np.sum(y_val==0)}, Clase 1={np.sum(y_val==1)})")
+    print(f"  Train: {len(X_train)} points (Class 0={np.sum(y_train==0)}, Class 1={np.sum(y_train==1)})")
+    print(f"  Val:   {len(X_val)} points (Class 0={np.sum(y_val==0)}, Class 1={np.sum(y_val==1)})")
 
-    # Probar diferentes configuraciones de SVM
-    print("\n[2/4] Entrenando SVM con diferentes configuraciones...\n")
+    # Test different SVM configurations
+    print("\n[2/4] Training SVM with different configurations...\n")
 
     configs = [
         {'kernel': 'rbf', 'C': 1.0, 'gamma': 'scale', 'name': 'RBF (C=1.0, gamma=scale)'},
@@ -91,11 +91,11 @@ if __name__ == "__main__":
     for config in configs:
         name = config.pop('name')
 
-        # Entrenar SVM
+        # Train SVM
         clf = SVC(**config, random_state=42)
         clf.fit(X_train, y_train)
 
-        # Evaluar
+        # Evaluate
         y_train_pred = clf.predict(X_train)
         y_val_pred = clf.predict(X_val)
 
@@ -126,54 +126,54 @@ if __name__ == "__main__":
             best_config = name
             best_clf = clf
 
-    # Mostrar mejor configuración
-    print("\n[3/4] Mejor configuración encontrada:")
+    # Show best configuration
+    print("\n[3/4] Best configuration found:")
     print(f"  {best_config}")
     print(f"  Validation Accuracy: {best_val_acc*100:.2f}%")
 
-    # Análisis detallado del mejor modelo
-    print("\n[4/4] Análisis detallado del mejor modelo:\n")
+    # Detailed analysis of best model
+    print("\n[4/4] Detailed analysis of best model:\n")
 
     y_train_pred = best_clf.predict(X_train)
     y_val_pred = best_clf.predict(X_val)
 
-    print("=== Métricas en TRAIN ===")
+    print("=== TRAIN Metrics ===")
     print(f"Accuracy:  {accuracy_score(y_train, y_train_pred)*100:.2f}%")
     print(f"Precision: {precision_score(y_train, y_train_pred, zero_division=0)*100:.2f}%")
     print(f"Recall:    {recall_score(y_train, y_train_pred, zero_division=0)*100:.2f}%")
-    print("\nMatriz de Confusión:")
+    print("\nConfusion Matrix:")
     print(confusion_matrix(y_train, y_train_pred))
 
-    print("\n=== Métricas en VALIDATION ===")
+    print("\n=== VALIDATION Metrics ===")
     print(f"Accuracy:  {accuracy_score(y_val, y_val_pred)*100:.2f}%")
     print(f"Precision: {precision_score(y_val, y_val_pred, zero_division=0)*100:.2f}%")
     print(f"Recall:    {recall_score(y_val, y_val_pred, zero_division=0)*100:.2f}%")
-    print("\nMatriz de Confusión:")
+    print("\nConfusion Matrix:")
     print(confusion_matrix(y_val, y_val_pred))
 
     print("\nClassification Report:")
-    print(classification_report(y_val, y_val_pred, target_names=['Clase 0', 'Clase 1']))
+    print(classification_report(y_val, y_val_pred, target_names=['Class 0', 'Class 1']))
 
-    # Visualizar frontera de decisión
+    # Visualize decision boundary
     plot_svm_decision_boundary(X, y, best_clf,
                                f"SVM Baseline - {best_config}\nVal Accuracy: {best_val_acc*100:.2f}%")
 
-    # Comparación con VQC
+    # Comparison with VQC
     print("\n" + "="*60)
-    print("COMPARACIÓN CON VQC")
+    print("COMPARISON WITH VQC")
     print("="*60)
     print(f"SVM (RBF kernel) Val Accuracy:  {best_val_acc*100:.2f}%")
-    print(f"VQC (reportado)  Val Accuracy:  53.33%")
-    print(f"\nDiferencia: {(best_val_acc*100 - 53.33):.2f}% a favor del SVM")
-    print("\nConclusión:")
+    print(f"VQC (reported)   Val Accuracy:  53.33%")
+    print(f"\nDifference: {(best_val_acc*100 - 53.33):.2f}% in favor of SVM")
+    print("\nConclusion:")
     if best_val_acc > 0.70:
-        print("  ✓ El SVM clásico supera significativamente al VQC actual")
-        print("  ✓ Esto sugiere que el problema NO está en el dataset")
-        print("  ✓ El VQC tiene margen de mejora (bug, hiperparámetros, o arquitectura)")
+        print("  ✓ Classical SVM significantly outperforms current VQC")
+        print("  ✓ This suggests the problem is NOT in the dataset")
+        print("  ✓ VQC has room for improvement (bug, hyperparameters, or architecture)")
     else:
-        print("  ⚠️ El SVM también tiene dificultades con este dataset")
-        print("  ⚠️ Esto sugiere dataset muy pequeño o muy ruidoso")
+        print("  ⚠️ SVM also struggles with this dataset")
+        print("  ⚠️ This suggests dataset too small or too noisy")
 
     print("\n" + "="*60)
-    print("Test completado exitosamente")
+    print("Test completed successfully")
     print("="*60)

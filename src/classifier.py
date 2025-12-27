@@ -1,26 +1,26 @@
 """
-Clasificador Cuántico Variacional (VQC)
+Variational Quantum Classifier (VQC)
 
-Este módulo implementa la clase principal del clasificador cuántico, combinando
-el circuito cuántico parametrizado con optimización clásica para aprendizaje
-automático híbrido.
+This module implements the main quantum classifier class, combining
+the parameterized quantum circuit with classical optimization for hybrid
+machine learning.
 
-Componentes:
-    - QuantumClassifier: Clase principal que encapsula el modelo VQC
-    - Función de costo: Calcula error de clasificación
-    - Optimización: Integración con scipy.optimize (COBYLA, Nelder-Mead)
-    - Evaluación: Métricas de accuracy y persistencia de parámetros
+Components:
+    - QuantumClassifier: Main class that encapsulates the VQC model
+    - Cost function: Calculates classification error
+    - Optimization: Integration with scipy.optimize (COBYLA, Nelder-Mead)
+    - Evaluation: Accuracy metrics and parameter persistence
 
-Algoritmo de entrenamiento:
-    1. Inicializar parámetros aleatoriamente
-    2. Para cada iteración:
-        a. Predecir clases con parámetros actuales
-        b. Calcular error (función de costo)
-        c. Optimizador ajusta parámetros
-    3. Converger cuando error deja de disminuir
+Training algorithm:
+    1. Initialize parameters randomly
+    2. For each iteration:
+        a. Predict classes with current parameters
+        b. Calculate error (cost function)
+        c. Optimizer adjusts parameters
+    3. Converge when error stops decreasing
 
-Funciones:
-    QuantumClassifier: Clase del clasificador completo
+Functions:
+    QuantumClassifier: Complete classifier class
 """
 
 import numpy as np
@@ -31,7 +31,7 @@ import pickle
 import sys
 import os
 
-# Añadir directorio padre al path para imports
+# Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
@@ -46,41 +46,41 @@ except ModuleNotFoundError:
 
 class QuantumClassifier:
     """
-    Clasificador Cuántico Variacional para clasificación binaria.
+    Variational Quantum Classifier for binary classification.
 
-    Implementa un modelo híbrido cuántico-clásico que:
-    - Codifica datos en estados cuánticos
-    - Aplica transformaciones parametrizadas
-    - Optimiza parámetros mediante algoritmos clásicos
+    Implements a hybrid quantum-classical model that:
+    - Encodes data in quantum states
+    - Applies parameterized transformations
+    - Optimizes parameters using classical algorithms
 
     Attributes:
-        n_qubits: Número de qubits en el circuito
-        n_params: Número de parámetros entrenables
-        shots: Repeticiones por medición
-        params: Parámetros actuales del modelo
-        training_history: Historial de entrenamiento
+        n_qubits: Number of qubits in the circuit
+        n_params: Number of trainable parameters
+        shots: Repetitions per measurement
+        params: Current model parameters
+        training_history: Training history
     """
 
     def __init__(self, n_qubits: int = 2, n_params: int = 4, shots: int = 100, n_layers: int = 1):
         """
-        Inicializa el clasificador cuántico.
+        Initializes the quantum classifier.
 
         Args:
-            n_qubits: Número de qubits (default: 2)
-            n_params: Número de parámetros (default: 4 para 1 capa, 8 para 2 capas)
-            shots: Shots por medición (default: 100)
-            n_layers: Número de capas variacionales (default: 1)
+            n_qubits: Number of qubits (default: 2)
+            n_params: Number of parameters (default: 4 for 1 layer, 8 for 2 layers)
+            shots: Shots per measurement (default: 100)
+            n_layers: Number of variational layers (default: 1)
         """
         self.n_qubits = n_qubits
         self.n_params = n_params
         self.shots = shots
-        # Soporte para múltiples capas variacionales
+        # Support for multiple variational layers
         self.n_layers = n_layers
 
-        # Inicializar parámetros aleatoriamente en [0, 2π]
+        # Initialize parameters randomly in [0, 2π]
         self.params = np.random.rand(n_params) * 2 * np.pi
 
-        # Historial de entrenamiento
+        # Training history
         self.training_history = {
             'cost': [],
             'iteration': [],
@@ -89,25 +89,25 @@ class QuantumClassifier:
 
     def _cost_function(self, params: np.ndarray, X: np.ndarray, y: np.ndarray) -> float:
         """
-        Calcula la función de costo (error de clasificación).
+        Calculates the cost function (classification error).
 
-        La función de costo es el porcentaje de predicciones incorrectas:
+        The cost function is the percentage of incorrect predictions:
             Cost = (1/N) * Σ |y_pred - y_true|
 
-        Usa batch predictions para mayor eficiencia.
+        Uses batch predictions for better efficiency.
 
         Args:
-            params: Parámetros actuales del circuito
-            X: Features de forma (n_samples, 2)
-            y: Labels de forma (n_samples,)
+            params: Current circuit parameters
+            X: Features of shape (n_samples, 2)
+            y: Labels of shape (n_samples,)
 
         Returns:
-            float: Costo en rango [0, 1] donde 0 = clasificación perfecta
+            float: Cost in range [0, 1] where 0 = perfect classification
         """
-        # Usar batch prediction para mayor eficiencia
+        # Use batch prediction for better efficiency
         predictions = predict_batch(X, params, self.shots, self.n_layers)
 
-        # Calcular porcentaje de error
+        # Calculate error percentage
         errors = np.sum(predictions != y)
         cost = errors / len(y)
 
@@ -122,47 +122,47 @@ class QuantumClassifier:
               patience: int = 20,
               min_delta: float = 1e-4) -> Dict:
         """
-        Entrena el clasificador optimizando los parámetros.
+        Trains the classifier by optimizing the parameters.
 
-        Utiliza scipy.optimize.minimize para encontrar parámetros que
-        minimizan la función de costo con early stopping.
+        Uses scipy.optimize.minimize to find parameters that
+        minimize the cost function with early stopping.
 
         Args:
-            X: Features de entrenamiento (n_samples, 2)
-            y: Labels de entrenamiento (n_samples,)
-            max_iter: Máximo de iteraciones (default: 200)
-            method: Algoritmo de optimización (default: 'COBYLA')
-                   Opciones: 'COBYLA', 'Nelder-Mead', 'Powell'
-            verbose: Si mostrar progreso (default: True)
-            patience: Iteraciones sin mejora antes de parar (default: 20)
-            min_delta: Mejora mínima considerada significativa (default: 1e-4)
+            X: Training features (n_samples, 2)
+            y: Training labels (n_samples,)
+            max_iter: Maximum iterations (default: 200)
+            method: Optimization algorithm (default: 'COBYLA')
+                   Options: 'COBYLA', 'Nelder-Mead', 'Powell'
+            verbose: Whether to show progress (default: True)
+            patience: Iterations without improvement before stopping (default: 20)
+            min_delta: Minimum improvement considered significant (default: 1e-4)
 
         Returns:
-            dict: Información del entrenamiento
-                - 'success': Si convergió
-                - 'final_cost': Costo final
-                - 'iterations': Iteraciones realizadas
-                - 'time': Tiempo total
-                - 'stopped_early': Si se activó early stopping
+            dict: Training information
+                - 'success': Whether it converged
+                - 'final_cost': Final cost
+                - 'iterations': Iterations performed
+                - 'time': Total time
+                - 'stopped_early': Whether early stopping was activated
         """
         if verbose:
-            print(f"=== Entrenamiento del Clasificador Cuántico ===")
-            print(f"Dataset: {X.shape[0]} puntos")
-            print(f"Método: {method}")
+            print(f"=== Quantum Classifier Training ===")
+            print(f"Dataset: {X.shape[0]} points")
+            print(f"Method: {method}")
             print(
-                f"Capas variacionales: {self.n_layers} (Parámetros: {self.n_params})")
-            print(f"Máx iteraciones: {max_iter}")
+                f"Variational layers: {self.n_layers} (Parameters: {self.n_params})")
+            print(f"Max iterations: {max_iter}")
             print(
                 f"Early stopping: patience={patience}, min_delta={min_delta}\n")
 
         start_time = time.time()
 
-        # Variables para early stopping
+        # Variables for early stopping
         best_cost = float('inf')
         no_improvement_count = 0
         early_stopped = False
 
-        # Callback para mostrar progreso y manejar early stopping
+        # Callback to show progress and handle early stopping
         def callback(params):
             nonlocal best_cost, no_improvement_count, early_stopped
 
@@ -180,34 +180,34 @@ class QuantumClassifier:
             else:
                 no_improvement_count += 1
 
-            # Si no hay mejora durante 'patience' iteraciones, detener
+            # If no improvement for 'patience' iterations, stop
             if no_improvement_count >= patience:
                 early_stopped = True
                 if verbose:
                     print(
-                        f"\n\n⚠️  Early stopping activado en iteración {current_iter}")
+                        f"\n\n⚠️  Early stopping activated at iteration {current_iter}")
                     print(
-                        f"No hubo mejora en {patience} iteraciones consecutivas")
-                # Forzar que scipy pare
+                        f"No improvement in {patience} consecutive iterations")
+                # Force scipy to stop
                 raise StopIteration
 
             if verbose:
-                # Calcular barra de progreso
+                # Calculate progress bar
                 progress = current_iter / max_iter
                 bar_length = 20
                 filled_length = int(bar_length * progress)
                 bar = '█' * filled_length + '░' * (bar_length - filled_length)
 
-                # Calcular tiempo estimado
+                # Calculate estimated time
                 avg_time_per_iter = elapsed_time / current_iter if current_iter > 0 else 0
                 eta = avg_time_per_iter * (max_iter - current_iter)
 
-                # Mostrar barra (sobreescribir misma línea con \r)
-                print(f"\rÉpoca {current_iter}/{max_iter} [{bar}] "
+                # Show bar (overwrite same line with \r)
+                print(f"\rEpoch {current_iter}/{max_iter} [{bar}] "
                       f"loss: {cost:.4f} (best: {best_cost:.4f}) - "
-                      f"ETA: {eta:.1f}s - sin mejora: {no_improvement_count}/{patience}", end='', flush=True)
+                      f"ETA: {eta:.1f}s - no improvement: {no_improvement_count}/{patience}", end='', flush=True)
 
-        # Optimización con manejo de early stopping
+        # Optimization with early stopping handling
         try:
             result = minimize(
                 fun=self._cost_function,
@@ -218,33 +218,33 @@ class QuantumClassifier:
                 callback=callback
             )
         except StopIteration:
-            # Early stopping activado - usar últimos parámetros
+            # Early stopping activated - use last parameters
             result = type('Result', (), {
-                'x': self.params,  # Mantener parámetros actuales
+                'x': self.params,  # Keep current parameters
                 'fun': best_cost,
                 'success': True,
                 'nit': len(self.training_history['cost']),
                 'message': 'Early stopping'
             })()
 
-        # Actualizar parámetros óptimos
+        # Update optimal parameters
         self.params = result.x
 
         training_time = time.time() - start_time
 
-        # Obtener número de iteraciones (no todos los optimizadores devuelven nit)
+        # Get number of iterations (not all optimizers return nit)
         iterations = getattr(result, 'nit', len(self.training_history['cost']))
 
         if verbose:
-            # Salto de línea después de la barra de progreso
+            # Line break after progress bar
             print("\n")
-            print(f"=== Entrenamiento Completado ===")
+            print(f"=== Training Completed ===")
             if early_stopped:
-                print(f"🛑 Detenido por early stopping")
-            print(f"Convergió: {result.success}")
-            print(f"Costo final: {result.fun:.4f}")
-            print(f"Iteraciones: {iterations}")
-            print(f"Tiempo: {training_time:.2f}s")
+                print(f"🛑 Stopped by early stopping")
+            print(f"Converged: {result.success}")
+            print(f"Final cost: {result.fun:.4f}")
+            print(f"Iterations: {iterations}")
+            print(f"Time: {training_time:.2f}s")
 
         return {
             'success': result.success,
@@ -257,31 +257,31 @@ class QuantumClassifier:
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         """
-        Predice clases para uno o múltiples puntos.
+        Predicts classes for one or multiple points.
 
         Args:
-            X: Features (n_samples, 2) o (2,) para un punto
+            X: Features (n_samples, 2) or (2,) for a single point
 
         Returns:
-            np.ndarray: Predicciones (n_samples,) o int para un punto
+            np.ndarray: Predictions (n_samples,) or int for a single point
         """
-        # Manejar single point (ahora con n_layers)
+        # Handle single point (now with n_layers)
         if X.ndim == 1:
             return predict_single_point(X[0], X[1], self.params, self.shots, self.n_layers)
 
-        # Manejar batch (ahora con n_layers)
+        # Handle batch (now with n_layers)
         return predict_batch(X, self.params, self.shots, self.n_layers)
 
     def evaluate(self, X: np.ndarray, y: np.ndarray) -> float:
         """
-        Calcula accuracy en un conjunto de datos.
+        Calculates accuracy on a dataset.
 
         Args:
             X: Features (n_samples, 2)
-            y: Labels verdaderos (n_samples,)
+            y: True labels (n_samples,)
 
         Returns:
-            float: Accuracy en rango [0, 1]
+            float: Accuracy in range [0, 1]
         """
         predictions = self.predict(X)
         accuracy = np.mean(predictions == y)
@@ -289,31 +289,31 @@ class QuantumClassifier:
 
     def save_params(self, filepath: str) -> None:
         """
-        Guarda parámetros entrenados a disco.
+        Saves trained parameters to disk.
 
         Args:
-            filepath: Ruta del archivo (ej: 'models/vqc_params.pkl')
+            filepath: File path (e.g.: 'models/vqc_params.pkl')
         """
         data = {
             'params': self.params,
             'n_qubits': self.n_qubits,
             'n_params': self.n_params,
             'shots': self.shots,
-            'n_layers': self.n_layers,  # Guardar n_layers para compatibilidad
+            'n_layers': self.n_layers,  # Save n_layers for compatibility
             'training_history': self.training_history
         }
 
         with open(filepath, 'wb') as f:
             pickle.dump(data, f)
 
-        print(f"Parámetros guardados en: {filepath}")
+        print(f"Parameters saved to: {filepath}")
 
     def load_params(self, filepath: str) -> None:
         """
-        Carga parámetros desde disco.
+        Loads parameters from disk.
 
         Args:
-            filepath: Ruta del archivo
+            filepath: File path
         """
         with open(filepath, 'rb') as f:
             data = pickle.load(f)
@@ -322,11 +322,11 @@ class QuantumClassifier:
         self.n_qubits = data['n_qubits']
         self.n_params = data['n_params']
         self.shots = data['shots']
-        # Por compatibilidad con modelos antiguos
+        # For compatibility with old models
         self.n_layers = data.get('n_layers', 1)
         self.training_history = data['training_history']
 
-        print(f"Parámetros cargados desde: {filepath}")
+        print(f"Parameters loaded from: {filepath}")
 
 
 # =============================================================================
@@ -335,34 +335,34 @@ class QuantumClassifier:
 
 if __name__ == "__main__":
     """
-    Script de prueba del clasificador.
-    Ejecutar: python src/classifier.py
+    Classifier test script.
+    Run: python src/classifier.py
     """
-    print("=== Prueba del Clasificador Cuántico ===\n")
+    print("=== Quantum Classifier Test ===\n")
 
-    # Generar datos de prueba simple
+    # Generate simple test data
     np.random.seed(42)
     X_train = np.random.rand(20, 2)
     y_train = (X_train[:, 0] + X_train[:, 1] > 1).astype(int)
 
-    print(f"Dataset de prueba: {X_train.shape}")
-    print(f"Distribución clases: {np.bincount(y_train)}\n")
+    print(f"Test dataset: {X_train.shape}")
+    print(f"Class distribution: {np.bincount(y_train)}\n")
 
-    # Crear y entrenar clasificador
+    # Create and train classifier
     classifier = QuantumClassifier(n_qubits=2, n_params=4, shots=50)
 
-    print("Accuracy inicial:", classifier.evaluate(X_train, y_train))
+    print("Initial accuracy:", classifier.evaluate(X_train, y_train))
 
-    # Entrenar
+    # Train
     result = classifier.train(X_train, y_train, max_iter=30, verbose=True)
 
-    # Evaluar
+    # Evaluate
     accuracy = classifier.evaluate(X_train, y_train)
-    print(f"\nAccuracy final: {accuracy:.2%}")
+    print(f"\nFinal accuracy: {accuracy:.2%}")
 
-    # Probar predicción individual
+    # Test individual prediction
     test_point = np.array([0.3, 0.8])
     prediction = classifier.predict(test_point)
-    print(f"\nPredicción para {test_point}: Clase {prediction}")
+    print(f"\nPrediction for {test_point}: Class {prediction}")
 
-    print("\n✅ Prueba completada!")
+    print("\n✅ Test completed!")

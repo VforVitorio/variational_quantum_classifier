@@ -1,13 +1,13 @@
 """
-Script Principal - Demo del Clasificador Cuántico Variacional
+Main Script - Variational Quantum Classifier Demo
 
-Ejecuta el pipeline completo:
-    1. Carga dataset de espirales
-    2. Entrena clasificador cuántico
-    3. Evalúa performance
-    4. Genera visualizaciones
+Executes the complete pipeline:
+    1. Load spiral dataset
+    2. Train quantum classifier
+    3. Evaluate performance
+    4. Generate visualizations
 
-Uso:
+Usage:
     python main.py
 """
 
@@ -23,29 +23,29 @@ import threading
 from queue import Queue
 import time
 
-# Añadir src al path
+# Add src to path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 sys.path.append(os.path.join(os.path.dirname(__file__), 'data'))
 
 
 def train_attempt_thread(thread_id, X, y, seed, n_params, shots, n_layers, max_iter, results_queue):
     """
-    Entrena un clasificador en un thread separado.
-    Thread-safe siguiendo guía de PyQuil multithreading.
+    Trains a classifier in a separate thread.
+    Thread-safe following PyQuil multithreading guide.
 
     Args:
-        thread_id: ID del thread
-        X, y: Datos de entrenamiento
-        seed: Semilla aleatoria
-        n_params, shots, n_layers: Configuración del clasificador
-        max_iter: Iteraciones de optimización
-        results_queue: Queue thread-safe para resultados
+        thread_id: Thread ID
+        X, y: Training data
+        seed: Random seed
+        n_params, shots, n_layers: Classifier configuration
+        max_iter: Optimization iterations
+        results_queue: Thread-safe queue for results
     """
     try:
-        # Seed único por thread
+        # Unique seed per thread
         np.random.seed(seed)
 
-        # Crear clasificador (instancia independiente por thread)
+        # Create classifier (independent instance per thread)
         classifier = QuantumClassifier(
             n_qubits=2,
             n_params=n_params,
@@ -53,7 +53,7 @@ def train_attempt_thread(thread_id, X, y, seed, n_params, shots, n_layers, max_i
             n_layers=n_layers
         )
 
-        # Entrenar (verbose=False para no mezclar outputs entre threads)
+        # Train (verbose=False to avoid mixed outputs between threads)
         start_time = time.time()
         training_result = classifier.train(
             X, y,
@@ -63,10 +63,10 @@ def train_attempt_thread(thread_id, X, y, seed, n_params, shots, n_layers, max_i
         )
         training_time = time.time() - start_time
 
-        # Evaluar
+        # Evaluate
         accuracy = classifier.evaluate(X, y)
 
-        # Guardar resultado en queue thread-safe
+        # Save result in thread-safe queue
         results_queue.put({
             'thread_id': thread_id,
             'accuracy': accuracy,
@@ -76,7 +76,7 @@ def train_attempt_thread(thread_id, X, y, seed, n_params, shots, n_layers, max_i
         })
 
     except Exception as e:
-        # Capturar errores para no bloquear otros threads
+        # Catch errors to avoid blocking other threads
         results_queue.put({
             'thread_id': thread_id,
             'error': str(e),
@@ -86,18 +86,18 @@ def train_attempt_thread(thread_id, X, y, seed, n_params, shots, n_layers, max_i
 
 def train_parallel(X, y, n_attempts=3, n_params=8, shots=100, n_layers=2, max_iter=80):
     """
-    Entrena múltiples intentos en paralelo usando threading.
+    Trains multiple attempts in parallel using threading.
 
     Returns:
-        tuple: (mejor_classifier, mejor_training_result, mejor_accuracy, resultados)
+        tuple: (best_classifier, best_training_result, best_accuracy, results)
     """
-    print(f"Entrenamiento paralelo: {n_attempts} threads simultáneos\n")
+    print(f"Parallel training: {n_attempts} simultaneous threads\n")
 
     results_queue = Queue()
     threads = []
-    seeds = [42, 123, 456, 789, 101112][:n_attempts]  # Semillas distintas
+    seeds = [42, 123, 456, 789, 101112][:n_attempts]  # Different seeds
 
-    # Crear y lanzar threads
+    # Create and launch threads
     start_time = time.time()
     for i, seed in enumerate(seeds):
         thread = threading.Thread(
@@ -108,69 +108,69 @@ def train_parallel(X, y, n_attempts=3, n_params=8, shots=100, n_layers=2, max_it
         )
         threads.append(thread)
         thread.start()
-        print(f"→ Intento {i+1}/{n_attempts} iniciado (Thread-{i+1})")
+        print(f"→ Attempt {i+1}/{n_attempts} started (Thread-{i+1})")
 
-    print(f"\nTodos los threads activos. Esperando resultados...\n")
+    print(f"\nAll threads active. Waiting for results...\n")
 
-    # Esperar a que todos terminen
+    # Wait for all to finish
     for i, thread in enumerate(threads):
         thread.join()
-        print(f"✓ Intento {i+1} completado")
+        print(f"✓ Attempt {i+1} completed")
 
     total_time = time.time() - start_time
     print(
-        f"\nTiempo total paralelo: {total_time:.1f}s ({total_time/60:.1f} min)\n")
+        f"\nTotal parallel time: {total_time:.1f}s ({total_time/60:.1f} min)\n")
 
-    # Recolectar resultados
+    # Collect results
     results = []
     while not results_queue.empty():
         results.append(results_queue.get())
 
-    # Filtrar errores y ordenar por accuracy
+    # Filter errors and sort by accuracy
     valid_results = [r for r in results if 'error' not in r]
     if not valid_results:
-        raise RuntimeError("Todos los intentos fallaron")
+        raise RuntimeError("All attempts failed")
 
     results_sorted = sorted(
         valid_results, key=lambda r: r['accuracy'], reverse=True)
 
-    # Mostrar resumen
-    print("Resumen de intentos:")
+    # Show summary
+    print("Attempt summary:")
     for r in results_sorted:
-        print(f"  Intento {r['thread_id']+1}: Accuracy={r['accuracy']:.2%}, "
-              f"Tiempo={r['time']:.1f}s")
+        print(f"  Attempt {r['thread_id']+1}: Accuracy={r['accuracy']:.2%}, "
+              f"Time={r['time']:.1f}s")
 
-    # Retornar mejor
+    # Return best
     best = results_sorted[0]
     return best['classifier'], best['training_result'], best['accuracy'], results_sorted
 
 
 def main():
-    """Pipeline principal del clasificador cuántico."""
+    """Main pipeline for the quantum classifier."""
 
     print("=" * 60)
-    print("CLASIFICADOR CUÁNTICO VARIACIONAL (VQC)")
+    print("VARIATIONAL QUANTUM CLASSIFIER (VQC)")
     print("=" * 60)
 
     # =========================================================================
-    # 1. GENERACIÓN/CARGA DE DATOS
+    # 1. DATA GENERATION/LOADING
     # =========================================================================
-    print("\n[1/5] Generando dataset de espirales...")
+    print("\n[1/5] Generating spiral dataset...")
 
-    # Configuración del dataset
-    # n_points: 50 (pruebas rápidas), 150 (estándar), 400 (producción)
+    # Dataset configuration
+    # n_points: 50 (quick tests), 150 (standard), 400 (production)
     X, y = make_spiral_dataset(n_points=150, noise=0.1, normalize=True)
 
-    print(f"Dataset generado: {X.shape[0]} puntos")
-    print(f"Distribución: Clase 0={np.sum(y==0)}, Clase 1={np.sum(y==1)}")
+    print(f"Dataset generated: {X.shape[0]} points")
+    print(f"Distribution: Class 0={np.sum(y==0)}, Class 1={np.sum(y==1)}")
 
     # =========================================================================
     # SPLIT TRAIN/VALIDATION (80/20)
     # =========================================================================
-    # Usar semilla fija para reproducibilidad
+    # Use fixed seed for reproducibility
     np.random.seed(42)
 
-    # Crear índices aleatorios
+    # Create random indices
     indices = np.random.permutation(len(X))
     train_size = int(0.8 * len(X))
 
@@ -182,32 +182,32 @@ def main():
 
     print(f"\nSplit train/validation (80/20):")
     print(
-        f"  Train: {len(X_train)} puntos (Clase 0={np.sum(y_train==0)}, Clase 1={np.sum(y_train==1)})")
+        f"  Train: {len(X_train)} points (Class 0={np.sum(y_train==0)}, Class 1={np.sum(y_train==1)})")
     print(
-        f"  Val:   {len(X_val)} puntos (Clase 0={np.sum(y_val==0)}, Clase 1={np.sum(y_val==1)})")
+        f"  Val:   {len(X_val)} points (Class 0={np.sum(y_val==0)}, Class 1={np.sum(y_val==1)})")
 
-    # Visualizar dataset completo
+    # Visualize complete dataset
     plot_dataset(X, y,
-                 title="Dataset de Espirales Entrelazadas (150 puntos)",
+                 title="Intertwined Spiral Dataset (150 points)",
                  save_path="results/dataset.png")
 
     # =========================================================================
-    # 2. ENTRENAMIENTO CON MÚLTIPLES INTENTOS
+    # 2. TRAINING WITH MULTIPLE ATTEMPTS
     # =========================================================================
-    print("\n[2/5] Entrenando clasificador (múltiples intentos)...")
+    print("\n[2/5] Training classifier (multiple attempts)...")
 
-    # Configuración
-    n_attempts = 1  # REDUCIDO: 3 → 1 (compensamos con mejor optimizador)
-    USE_THREADING = False  # Desactivado (GIL no permite paralelismo real)
+    # Configuration
+    n_attempts = 1  # REDUCED: 3 → 1 (compensate with better optimizer)
+    USE_THREADING = False  # Disabled (GIL doesn't allow real parallelism)
 
-    # Parámetros del clasificador (OPCIÓN A: COBYLA + más shots)
-    n_params = 8      # 2 capas × 2 qubits × 2 rotaciones
-    shots = 500       # Aumentado 150→300→500 (reduce shot noise: 8% → 4.5%)
-    n_layers = 2      # Mantener arquitectura que funcionó
-    max_iter = 120    # Suficiente para convergencia
+    # Classifier parameters (OPTION A: COBYLA + more shots)
+    n_params = 8      # 2 layers × 2 qubits × 2 rotations
+    shots = 500       # Increased 150→300→500 (reduces shot noise: 8% → 4.5%)
+    n_layers = 2      # Keep architecture that worked
+    max_iter = 120    # Sufficient for convergence
 
     if USE_THREADING:
-        # Versión paralela (no recomendada - GIL issue)
+        # Parallel version (not recommended - GIL issue)
         best_classifier, best_training_result, best_accuracy, all_results = train_parallel(
             X_train, y_train,
             n_attempts=n_attempts,
@@ -217,15 +217,15 @@ def main():
             max_iter=max_iter
         )
     else:
-        # Versión secuencial (recomendada)
-        print(f"Intentos de entrenamiento: {n_attempts} (secuencial)\n")
+        # Sequential version (recommended)
+        print(f"Training attempts: {n_attempts} (sequential)\n")
         best_accuracy = 0
         best_val_accuracy = 0
         best_classifier = None
         best_training_result = None
 
         for attempt in range(n_attempts):
-            print(f"--- Intento {attempt + 1}/{n_attempts} ---")
+            print(f"--- Attempt {attempt + 1}/{n_attempts} ---")
 
             classifier = QuantumClassifier(
                 n_qubits=2,
@@ -234,77 +234,77 @@ def main():
                 n_layers=n_layers
             )
 
-            # Entrenar solo con datos de entrenamiento
+            # Train only with training data
             training_result = classifier.train(
                 X_train, y_train,
                 max_iter=max_iter,
-                method='COBYLA',    # Volvemos a COBYLA (demostró mejor convergencia)
+                method='COBYLA',    # Back to COBYLA (showed better convergence)
                 verbose=True,
-                patience=40,        # Más permisivo que antes (era 30)
-                min_delta=0.002     # Más permisivo que antes (era 0.003)
+                patience=40,        # More permissive than before (was 30)
+                min_delta=0.002     # More permissive than before (was 0.003)
             )
 
-            # Evaluar en train y validation
+            # Evaluate on train and validation
             train_accuracy = classifier.evaluate(X_train, y_train)
             val_accuracy = classifier.evaluate(X_val, y_val)
 
             print(f"\nTrain Accuracy: {train_accuracy:.2%}")
             print(f"Val Accuracy:   {val_accuracy:.2%}")
-            print(f"Costo final: {training_result['final_cost']:.4f}")
-            print(f"Tiempo: {training_result['time']:.1f}s")
+            print(f"Final cost: {training_result['final_cost']:.4f}")
+            print(f"Time: {training_result['time']:.1f}s")
 
-            # Calcular overfitting gap
+            # Calculate overfitting gap
             overfit_gap = train_accuracy - val_accuracy
             if overfit_gap > 0.1:
-                print(f"⚠️  Posible overfitting (gap: {overfit_gap:.2%})")
+                print(f"⚠️  Possible overfitting (gap: {overfit_gap:.2%})")
             print()
 
-            # Seleccionar mejor modelo basado en VALIDATION accuracy
+            # Select best model based on VALIDATION accuracy
             if val_accuracy > best_val_accuracy:
                 best_val_accuracy = val_accuracy
                 best_accuracy = train_accuracy
                 best_classifier = classifier
                 best_training_result = training_result
-                print("★ Nuevo mejor modelo guardado (basado en val accuracy)!\n")
+                print("★ New best model saved (based on val accuracy)!\n")
 
-    print(f"\n★ Mejor Train Accuracy: {best_accuracy:.2%}")
-    print(f"★ Mejor Val Accuracy:   {best_val_accuracy:.2%}")
+    print(f"\n★ Best Train Accuracy: {best_accuracy:.2%}")
+    print(f"★ Best Val Accuracy:   {best_val_accuracy:.2%}")
 
     # =========================================================================
-    # 3. EVALUACIÓN DETALLADA
+    # 3. DETAILED EVALUATION
     # =========================================================================
-    print("\n[3/5] Evaluando mejor modelo...")
+    print("\n[3/5] Evaluating best model...")
 
-    # Evaluar en ambos conjuntos
-    print("\nEvaluación en Train:")
+    # Evaluate on both sets
+    print("\nEvaluation on Train:")
     y_pred_train = best_classifier.predict(X_train)
     metrics_train = calculate_metrics(y_train, y_pred_train)
     print_metrics(metrics_train)
 
     print("\n" + "-" * 40)
-    print("Evaluación en Validation:")
+    print("Evaluation on Validation:")
     y_pred_val = best_classifier.predict(X_val)
     metrics_val = calculate_metrics(y_val, y_pred_val)
     print_metrics(metrics_val)
 
-    # Métricas finales (usar validación para reporte)
+    # Final metrics (use validation for report)
     final_metrics = metrics_val
 
     # =========================================================================
-    # 4. VISUALIZACIÓN DE RESULTADOS
+    # 4. RESULTS VISUALIZATION
     # =========================================================================
-    print("\n[4/5] Generando visualizaciones...")
+    print("\n[4/5] Generating visualizations...")
 
-    # Visualización de frontera de decisión (con todos los datos)
-    # resolution: 30 (rápido), 40 (estándar), 100 (alta calidad)
+    # Decision boundary visualization (with all data)
+    # resolution: 30 (fast), 40 (standard), 100 (high quality)
     plot_decision_boundary(
         best_classifier, X, y,
         resolution=40,
-        title="Frontera de Decisión Aprendida (Dataset Completo)",
+        title="Learned Decision Boundary (Complete Dataset)",
         save_path="results/decision_boundary.png"
     )
 
-    # Convergencia del mejor modelo
+    # Convergence of best model
     if best_classifier.training_history['cost']:
         plot_training_history(
             best_classifier.training_history,
@@ -312,47 +312,47 @@ def main():
         )
 
     # =========================================================================
-    # 5. GUARDAR RESULTADOS
+    # 5. SAVE RESULTS
     # =========================================================================
-    print("\n[5/5] Guardando resultados...")
+    print("\n[5/5] Saving results...")
 
-    # Guardar métricas (validación)
+    # Save metrics (validation)
     save_results(final_metrics, best_training_result, "results/metrics.txt")
 
-    # Guardar parámetros del mejor modelo
+    # Save best model parameters
     best_classifier.save_params("results/best_model_params.pkl")
 
     # =========================================================================
-    # RESUMEN FINAL
+    # FINAL SUMMARY
     # =========================================================================
     print("\n" + "=" * 60)
-    print("RESUMEN")
+    print("SUMMARY")
     print("=" * 60)
     print(
-        f"Dataset: {len(X)} puntos (Train: {len(X_train)}, Val: {len(X_val)})")
-    print(f"Intentos de entrenamiento: {n_attempts}")
-    print(f"Mejor Train Accuracy: {best_accuracy:.2%}")
-    print(f"Mejor Val Accuracy:   {best_val_accuracy:.2%}")
-    print(f"Overfitting gap:      {(best_accuracy - best_val_accuracy):.2%}")
-    print(f"Tiempo mejor modelo: {best_training_result['time']:.2f}s")
-    print(f"Iteraciones: {best_training_result['iterations']}")
+        f"Dataset: {len(X)} points (Train: {len(X_train)}, Val: {len(X_val)})")
+    print(f"Training attempts: {n_attempts}")
+    print(f"Best Train Accuracy: {best_accuracy:.2%}")
+    print(f"Best Val Accuracy:   {best_val_accuracy:.2%}")
+    print(f"Overfitting gap:     {(best_accuracy - best_val_accuracy):.2%}")
+    print(f"Best model time: {best_training_result['time']:.2f}s")
+    print(f"Iterations: {best_training_result['iterations']}")
     if best_training_result.get('stopped_early'):
-        print(f"🛑 Early stopping activado")
-    print("\nArchivos generados:")
+        print(f"🛑 Early stopping activated")
+    print("\nGenerated files:")
     print("  - results/dataset.png")
     print("  - results/decision_boundary.png")
     print("  - results/training_convergence.png")
     print("  - results/metrics.txt (validation metrics)")
     print("  - results/best_model_params.pkl")
-    print("\nPipeline completado exitosamente!")
-    print("\nNota: El modelo se seleccionó usando validation accuracy")
-    print("      para evitar overfitting.")
+    print("\nPipeline completed successfully!")
+    print("\nNote: The model was selected using validation accuracy")
+    print("      to avoid overfitting.")
 
 
 if __name__ == "__main__":
-    # Crear directorio de resultados
+    # Create results directory
     os.makedirs('results', exist_ok=True)
     os.makedirs('data', exist_ok=True)
 
-    # Ejecutar pipeline
+    # Execute pipeline
     main()

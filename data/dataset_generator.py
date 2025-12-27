@@ -1,22 +1,22 @@
 """
-Generador de Dataset de Espirales para Clasificador Cuántico Variacional
+Spiral Dataset Generator for Variational Quantum Classifier
 
-Este módulo genera un dataset de espirales entrelazadas para clasificación binaria.
-Consiste en dos espirales que rotan en direcciones opuestas, creando un problema
-no linealmente separable ideal para demostrar las capacidades de clasificadores cuánticos.
+This module generates an intertwined spiral dataset for binary classification.
+Consists of two spirals rotating in opposite directions, creating a non-linearly
+separable problem ideal for demonstrating quantum classifier capabilities.
 
-Formulación matemática:
-    - Espiral A (clase 0): r = 2θ + π, θ ∈ [0, 2π]
-    - Espiral B (clase 1): r = -2θ - π, θ ∈ [0, 2π]
-    - Coordenadas: (x, y) = (r·cos(θ), r·sin(θ))
+Mathematical formulation:
+    - Spiral A (class 0): r = 2θ + π, θ ∈ [0, 2π]
+    - Spiral B (class 1): r = -2θ - π, θ ∈ [0, 2π]
+    - Coordinates: (x, y) = (r·cos(θ), r·sin(θ))
 
-Funciones:
-    generate_spiral_points: Generación de espirales usando coordenadas polares
-    normalize_data: Escalar coordenadas al rango [0, 1]
-    make_spiral_dataset: Pipeline principal (generar + normalizar)
-    plot_spiral_dataset: Utilidad de visualización
-    save_dataset: Persistir dataset a disco
-    load_dataset: Cargar dataset desde disco
+Functions:
+    generate_spiral_points: Spiral generation using polar coordinates
+    normalize_data: Scale coordinates to range [0, 1]
+    make_spiral_dataset: Main pipeline (generate + normalize)
+    plot_spiral_dataset: Visualization utility
+    save_dataset: Persist dataset to disk
+    load_dataset: Load dataset from disk
 """
 
 import numpy as np
@@ -25,60 +25,60 @@ from typing import Tuple, Optional
 
 
 # =============================================================================
-# FUNCIONES PRINCIPALES
+# MAIN FUNCTIONS
 # =============================================================================
 
 def generate_spiral_points(n_points: int, noise: float = 0.1) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Genera dataset de espirales entrelazadas mediante transformación de coordenadas polares.
+    Generates intertwined spiral dataset through polar coordinate transformation.
 
-    Crea dos espirales con patrones de rotación opuestos. Los puntos se distribuyen
-    uniformemente a lo largo del parámetro angular, con ruido gaussiano opcional.
+    Creates two spirals with opposite rotation patterns. Points are distributed
+    uniformly along the angular parameter, with optional Gaussian noise.
 
     Args:
-        n_points: Número total de puntos a generar (divididos equitativamente entre clases)
-        noise: Desviación estándar del ruido gaussiano añadido (default: 0.1)
+        n_points: Total number of points to generate (divided equally between classes)
+        noise: Standard deviation of added Gaussian noise (default: 0.1)
 
     Returns:
-        X: Array de forma (n_points, 2) conteniendo coordenadas [x, y]
-        y: Array de forma (n_points,) conteniendo etiquetas binarias [0, 1]
+        X: Array of shape (n_points, 2) containing coordinates [x, y]
+        y: Array of shape (n_points,) containing binary labels [0, 1]
 
-    Ejemplo:
+    Example:
         >>> X, y = generate_spiral_points(200, noise=0.05)
         >>> X.shape, y.shape
         ((200, 2), (200,))
     """
     n_per_class = n_points // 2
 
-    # Generar ángulos uniformemente distribuidos
+    # Generate uniformly distributed angles
     theta = np.linspace(0, 2 * np.pi, n_per_class)
 
-    # Espiral A (clase 0): rotación horaria
+    # Spiral A (class 0): clockwise rotation
     r_a = 2 * theta + np.pi
     x_a = r_a * np.cos(theta)
     y_a = r_a * np.sin(theta)
 
-    # Espiral B (clase 1): rotación antihoraria
+    # Spiral B (class 1): counterclockwise rotation
     r_b = -2 * theta - np.pi
     x_b = r_b * np.cos(theta)
     y_b = r_b * np.sin(theta)
 
-    # Combinar ambas espirales
+    # Combine both spirals
     X = np.vstack([
         np.column_stack([x_a, y_a]),
         np.column_stack([x_b, y_b])
     ])
 
-    # Añadir ruido gaussiano
+    # Add Gaussian noise
     X += np.random.randn(*X.shape) * noise
 
-    # Crear etiquetas
+    # Create labels
     y = np.hstack([
         np.zeros(n_per_class, dtype=int),
         np.ones(n_per_class, dtype=int)
     ])
 
-    # Mezclar datos
+    # Shuffle data
     indices = np.random.permutation(n_points)
     X = X[indices]
     y = y[indices]
@@ -87,26 +87,26 @@ def generate_spiral_points(n_points: int, noise: float = 0.1) -> Tuple[np.ndarra
 
 
 # =============================================================================
-# PROCESAMIENTO DE DATOS
+# DATA PROCESSING
 # =============================================================================
 
 def normalize_data(X: np.ndarray) -> np.ndarray:
     """
-    Normaliza coordenadas al rango [0, 1] usando escalado min-max.
+    Normalizes coordinates to range [0, 1] using min-max scaling.
 
-    Esencial para encoding cuántico ya que los ángulos de rotación deben estar acotados.
-    Aplica normalización independiente a las coordenadas x e y.
+    Essential for quantum encoding since rotation angles must be bounded.
+    Applies independent normalization to x and y coordinates.
 
     Args:
-        X: Array de forma (n_samples, 2) conteniendo coordenadas crudas
+        X: Array of shape (n_samples, 2) containing raw coordinates
 
     Returns:
-        X_norm: Array de forma (n_samples, 2) con coordenadas normalizadas en [0, 1]
+        X_norm: Array of shape (n_samples, 2) with normalized coordinates in [0, 1]
 
-    Fórmula:
+    Formula:
         X_norm = (X - X.min(axis=0)) / (X.max(axis=0) - X.min(axis=0))
 
-    Ejemplo:
+    Example:
         >>> X = np.array([[-1, -1], [0, 0], [1, 1]])
         >>> normalize_data(X)
         array([[0. , 0. ],
@@ -116,7 +116,7 @@ def normalize_data(X: np.ndarray) -> np.ndarray:
     X_min = X.min(axis=0)
     X_max = X.max(axis=0)
 
-    # Evitar división por cero
+    # Avoid division by zero
     X_range = X_max - X_min
     X_range[X_range == 0] = 1.0
 
@@ -126,93 +126,93 @@ def normalize_data(X: np.ndarray) -> np.ndarray:
 
 
 # =============================================================================
-# PERSISTENCIA
+# PERSISTENCE
 # =============================================================================
 
 def save_dataset(X: np.ndarray, y: np.ndarray, filepath: str) -> None:
     """
-    Guarda dataset a disco en formato CSV.
+    Saves dataset to disk in CSV format.
 
     Args:
-        X: Matriz de características de forma (n_samples, 2)
-        y: Vector de etiquetas de forma (n_samples,)
-        filepath: Ruta donde guardar el archivo (debe terminar en .csv)
+        X: Feature matrix of shape (n_samples, 2)
+        y: Label vector of shape (n_samples,)
+        filepath: Path where to save the file (must end in .csv)
 
-    Ejemplo:
+    Example:
         >>> save_dataset(X, y, 'data/spiral_dataset.csv')
     """
-    # Combinar X e y en una sola matriz
+    # Combine X and y in a single matrix
     data = np.column_stack([X, y])
 
-    # Guardar con encabezados
+    # Save with headers
     np.savetxt(filepath, data, delimiter=',', header='x,y,label',
                comments='', fmt='%.6f,%.6f,%d')
-    print(f"Dataset guardado en: {filepath}")
+    print(f"Dataset saved to: {filepath}")
 
 
 def load_dataset(filepath: str) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Carga dataset desde disco.
+    Loads dataset from disk.
 
     Args:
-        filepath: Ruta al archivo .csv
+        filepath: Path to .csv file
 
     Returns:
-        X: Matriz de características de forma (n_samples, 2)
-        y: Vector de etiquetas de forma (n_samples,)
+        X: Feature matrix of shape (n_samples, 2)
+        y: Label vector of shape (n_samples,)
 
-    Ejemplo:
+    Example:
         >>> X, y = load_dataset('data/spiral_dataset.csv')
     """
-    # Cargar datos saltando la cabecera
+    # Load data skipping header
     data = np.loadtxt(filepath, delimiter=',', skiprows=1)
 
-    # Separar características y etiquetas
+    # Separate features and labels
     X = data[:, :2]
     y = data[:, 2].astype(int)
 
-    print(f"Dataset cargado desde: {filepath}")
-    print(f"Forma: X={X.shape}, y={y.shape}")
+    print(f"Dataset loaded from: {filepath}")
+    print(f"Shape: X={X.shape}, y={y.shape}")
     return X, y
 
 
 # =============================================================================
-# VISUALIZACIÓN
+# VISUALIZATION
 # =============================================================================
 
 def plot_spiral_dataset(X: np.ndarray, y: np.ndarray, save_path: Optional[str] = None) -> None:
     """
-    Visualiza dataset de espirales con clases codificadas por color.
+    Visualizes spiral dataset with classes color-coded.
 
-    Crea un scatter plot con:
-        - Clase 0 (círculos rojos): Espiral exterior
-        - Clase 1 (círculos azules): Espiral interior
+    Creates a scatter plot with:
+        - Class 0 (red circles): Outer spiral
+        - Class 1 (blue circles): Inner spiral
 
     Args:
-        X: Coordenadas de forma (n_samples, 2)
-        y: Etiquetas de forma (n_samples,)
-        save_path: Ruta opcional para guardar la figura (ej: 'results/spiral.png')
+        X: Coordinates of shape (n_samples, 2)
+        y: Labels of shape (n_samples,)
+        save_path: Optional path to save the figure (e.g.: 'results/spiral.png')
 
-    Ejemplo:
+    Example:
         >>> plot_spiral_dataset(X, y, save_path='results/dataset.png')
     """
     plt.figure(figsize=(8, 8))
 
-    # Plotear clase 0
+    # Plot class 0
     mask_0 = y == 0
     plt.scatter(X[mask_0, 0], X[mask_0, 1],
                 c='red', marker='o', s=30, alpha=0.6,
-                label='Clase 0', edgecolors='darkred')
+                label='Class 0', edgecolors='darkred')
 
-    # Plotear clase 1
+    # Plot class 1
     mask_1 = y == 1
     plt.scatter(X[mask_1, 0], X[mask_1, 1],
                 c='blue', marker='o', s=30, alpha=0.6,
-                label='Clase 1', edgecolors='darkblue')
+                label='Class 1', edgecolors='darkblue')
 
     plt.xlabel('X', fontsize=12)
     plt.ylabel('Y', fontsize=12)
-    plt.title('Dataset de Espirales Entrelazadas',
+    plt.title('Intertwined Spiral Dataset',
               fontsize=14, fontweight='bold')
     plt.legend(fontsize=10)
     plt.grid(True, alpha=0.3)
@@ -220,76 +220,76 @@ def plot_spiral_dataset(X: np.ndarray, y: np.ndarray, save_path: Optional[str] =
 
     if save_path:
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
-        print(f"Figura guardada en: {save_path}")
+        print(f"Figure saved to: {save_path}")
 
     plt.show()
 
 
 # =============================================================================
-# PIPELINE PRINCIPAL
+# MAIN PIPELINE
 # =============================================================================
 
 def make_spiral_dataset(n_points: int = 200,
                         noise: float = 0.1,
                         normalize: bool = True) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Pipeline completo para generar dataset de espirales normalizado.
+    Complete pipeline to generate normalized spiral dataset.
 
-    Esta es la función principal para usar externamente. Combina generación
-    y normalización en una única llamada.
+    This is the main function for external use. Combines generation
+    and normalization in a single call.
 
     Args:
-        n_points: Número total de puntos (default: 200)
-        noise: Nivel de ruido para generación de espirales (default: 0.1)
-        normalize: Si aplicar normalización o no (default: True)
+        n_points: Total number of points (default: 200)
+        noise: Noise level for spiral generation (default: 0.1)
+        normalize: Whether to apply normalization or not (default: True)
 
     Returns:
-        X: Coordenadas normalizadas de forma (n_points, 2) en [0, 1]
-        y: Etiquetas binarias de forma (n_points,)
+        X: Normalized coordinates of shape (n_points, 2) in [0, 1]
+        y: Binary labels of shape (n_points,)
 
-    Ejemplo:
+    Example:
         >>> X_train, y_train = make_spiral_dataset(n_points=200, noise=0.1)
         >>> X_train.min(), X_train.max()
         (0.0, 1.0)
     """
-    # Generar espirales
+    # Generate spirals
     X, y = generate_spiral_points(n_points, noise)
 
-    # Normalizar si se solicita
+    # Normalize if requested
     if normalize:
         X = normalize_data(X)
 
-    print(f"Dataset generado: {n_points} puntos, {len(np.unique(y))} clases")
-    print(f"Rango X: [{X[:, 0].min():.3f}, {X[:, 0].max():.3f}]")
-    print(f"Rango Y: [{X[:, 1].min():.3f}, {X[:, 1].max():.3f}]")
+    print(f"Dataset generated: {n_points} points, {len(np.unique(y))} classes")
+    print(f"X range: [{X[:, 0].min():.3f}, {X[:, 0].max():.3f}]")
+    print(f"Y range: [{X[:, 1].min():.3f}, {X[:, 1].max():.3f}]")
 
     return X, y
 
 
 # =============================================================================
-# SCRIPT DE PRUEBA
+# TEST SCRIPT
 # =============================================================================
 
 if __name__ == "__main__":
     """
-    Script de prueba para verificar la generación del dataset.
-    Ejecutar: python data/dataset_generator.py
+    Test script to verify dataset generation.
+    Run: python data/dataset_generator.py
     """
-    print("=== Generando Dataset de Espirales ===\n")
+    print("=== Generating Spiral Dataset ===\n")
 
-    # Generar dataset
+    # Generate dataset
     X, y = make_spiral_dataset(n_points=400, noise=0.1, normalize=True)
 
-    # Visualizar
-    print("\n=== Visualizando Dataset ===")
+    # Visualize
+    print("\n=== Visualizing Dataset ===")
     plot_spiral_dataset(X, y, save_path='results/spiral_dataset.png')
 
-    # Guardar dataset
-    print("\n=== Guardando Dataset ===")
+    # Save dataset
+    print("\n=== Saving Dataset ===")
     save_dataset(X, y, 'data/spiral_dataset.csv')
 
-    # Verificar carga
-    print("\n=== Verificando Carga ===")
+    # Verify loading
+    print("\n=== Verifying Loading ===")
     X_loaded, y_loaded = load_dataset('data/spiral_dataset.csv')
 
-    print("\n✅ Todas las pruebas completadas exitosamente!")
+    print("\n✅ All tests completed successfully!")
